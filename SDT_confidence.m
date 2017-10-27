@@ -1,12 +1,17 @@
-function [para] = SDTvsConf(mysim, saveoption,varargin);
+function [para] = SDT_confidence(mysim, saveoption,varargin)
 %% simulation of the signal detection theory and confidence
 %
 % written by Katsuhisa (25.03.17)
 % +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 close all
+
+% yellow and green
+y = [0.9576    0.7285    0.2285];
+g = [0.1059    0.4706    0.2157];
+
 if nargin==0
-        mysim = 0;
+        mysim = 1;
         saveoption = 0;
 elseif nargin==1
         saveoption = 0;
@@ -16,21 +21,21 @@ if mysim==1
         % model parameters =======================
 
         % number of stimuli in each trial
-        nst = 100;
+        nst = 1;
 
         % evidence strength
-        dc = linspace(0.01, 0.49, 15);
+        dc = 100*linspace(0.01, 0.5, 10);
 
         % signed stimulus
         ss = sort(unique([-dc dc]));
 
         % ratio of the number of trials in each evidence
         ntr = ones(1,length(ss));
-        otr = 10^5;
+        otr = 10^7;
         alltr = sum(otr*ntr);
 
         % internal noise
-        noise = 2.723;
+        noise = 22.8;
 
         % bias 
         c = 0;
@@ -47,7 +52,7 @@ if mysim==1
 
             % decision variable
             dvvec = normrnd(ss(s), noise, [tr, nst]);
-            dv = cumsum(dvvec,2);
+%             dv = cumsum(dvvec,2);
 
             % choice
             ch = sign(mean(dvvec,2) - c.*ones(tr,1));
@@ -69,7 +74,7 @@ if mysim==1
         % % confidence
         % percept = cumsum(abs(paramat(:,5:end)),2);
         % percept = percept(:,end);
-        %  acc = paramat(:,3);
+        % acc = paramat(:,3);
         % [~,si] = sort(percept);
         % sorted_acc = acc(si);
         % binsize = 100;
@@ -119,22 +124,24 @@ if mysim==1
         end
 
         % percent correct vs confidence
-        binsize = 100;
+        binsize = 20;
         pc_cf = nan(1, binsize);
         conf = paramat(:,4);
         acc = paramat(:,3);
 
-        [~, si] = sort(conf);
+        [sorted_conf, si] = sort(conf);
         sorted_acc = acc(si);
         frameperbin = floor(alltr/binsize);
+        cfx = pc_cf;
         begin = 1;
         for b = 1:binsize
+            cfx(b) = mean(sorted_conf(begin:begin+frameperbin-1));
             vec = sorted_acc(begin:begin+frameperbin-1);
-            pc_cf(b) = 100*length(find(vec==1))/length(vec);
+            pc_cf(b) = sum(vec==1)/length(vec);
 
             begin = begin + frameperbin;
         end
-else
+% else
 %         paramat = 0;
 %         binsize = 100;
 %         pc_cf = linspace(50,100,binsize);
@@ -148,7 +155,7 @@ else
 %         dv_cf = zeros(2,100);
 %         dv_cf(1,:) = 1:100;
 %         dv_cf(2,:) = 1:100 + 1:100/100;
-        
+%         
 end
     
 % visualize
@@ -158,13 +165,13 @@ else
         figure;
         subplot(2,2,1)
 end
-plot(1:binsize, pc_cf, '-k', 'linewidth', 1.5)
+plot(cfx, pc_cf, '-k', 'linewidth', 2)
 set(gca, 'box', 'off')
-xlim([0.9 12.1])
+xlim([50 100])
 xlabel('confidence')
 ylabel('accuracy (%)')
 if saveoption==1
-        savefig(strcat('Z:\Katsuhisa\pupil_project\Figures\Figure8_threeSignatures\individualFigs\',...
+        savefig(strcat('\\172.25.250.112\nienborg_group\Katsuhisa\pupil_project\Figures\Figure3_PSvsSDT\raw_figs\',...
                                                                         'PCvsCF_sim.fig'))
 end
 
@@ -173,17 +180,20 @@ if saveoption==1
 else
         subplot(2,2,2)
 end
-plot(dc, cf_ev(1,:), '-r','linewidth',1)
+% plot(dc, cf_ev(1,:), '-','color',y,'linewidth',1)
+% hold on;
+% plot(dc, cf_ev(2,:), '-','color',g,'linewidth',1)
+plot(1:length(dc), cf_ev(1,:), '-','color',0.6*ones(1,3),'linewidth',2)
 hold on;
-plot(dc, cf_ev(2,:), '-b','linewidth',1)
+plot(1:length(dc), cf_ev(2,:), '-','color',zeros(1,3),'linewidth',2)
 set(gca, 'box', 'off')
-xlim([min(dc)-0.03 max(dc)+0.03])
+% xlim([min(dc)-0.03 max(dc)+0.03])
 ylabel('confidence')
 xlabel('evidence')
 legend('error', 'correct','location','southwest')
 legend('boxoff')
 if saveoption==1
-        savefig(strcat('Z:\Katsuhisa\pupil_project\Figures\Figure8_threeSignatures\individualFigs\',...
+        savefig(strcat('\\172.25.250.112\nienborg_group\Katsuhisa\pupil_project\Figures\Figure3_PSvsSDT\raw_figs\',...
                                                                         'CFvsEV_sim.fig'))
 end
 
@@ -192,17 +202,20 @@ if saveoption==1
 else
         subplot(2,2,3)
 end
-plot(dc, pc_ev(1,:), '-b','linewidth',1)
+% plot(dc, pc_ev(1,:), '-','color',g,'linewidth',1)
+% hold on;
+% plot(dc, pc_ev(2,:),'-','color',y,'linewidth',1)
+plot(1:length(dc), pc_ev(1,:), '-','color',g,'linewidth',2)
 hold on;
-plot(dc, pc_ev(2,:),'-r','linewidth',1)
-xlim([min(dc)-0.03 max(dc)+0.03])
+plot(1:length(dc), pc_ev(2,:),'-','color',y,'linewidth',2)
+% xlim([min(dc)-0.03 max(dc)+0.03])
 set(gca, 'box', 'off')
 ylabel('accuracy (%)')
 xlabel('evidence')
 legend('low conf.','high conf.','location','southeast')
 legend('boxoff')
 if saveoption==1
-        savefig(strcat('Z:\Katsuhisa\pupil_project\Figures\Figure8_threeSignatures\individualFigs\',...
+        savefig(strcat('\\172.25.250.112\nienborg_group\Katsuhisa\pupil_project\Figures\Figure3_PSvsSDT\raw_figs\',...
                                                                         'PCvsEV_sim.fig'))
 end
 
@@ -212,22 +225,22 @@ else
         subplot(2,2,4)
 end
 divide = mean(dv_cf(:));
-plot(1:nst, dv_cf(1,:)/divide, '-b')
+plot(1:nst, dv_cf(1,:)/divide, '-','color',g)
 hold on;
-plot(1:nst, dv_cf(2,:)/divide, '-r')
+plot(1:nst, dv_cf(2,:)/divide, '-','color',y)
 xlim([0.5 nst+0.5]) 
 xlabel('frames')
 ylabel('abs DV')
 set(gca,'box','off')
 if saveoption==1
-        savefig(strcat('Z:\Katsuhisa\pupil_project\Figures\Figure8_threeSignatures\individualFigs\',...
-                                                                        'DV_sim.fig'))
+%         savefig(strcat('\\172.25.250.112\nienborg_group\Katsuhisa\pupil_project\Figures\Figure3_PSvsSDT\raw_figs\',...
+%                                                                         'DV_sim.fig'))
 else
         set(gcf, 'position', [807.0000  201.6667  462.6667  425.3333])
 end
 
 % output
-para.mat = paramat;
+% para.mat = paramat;
 para.pc_cf = pc_cf;
 para.cf_ev = cf_ev;
 para.pc_ev = pc_ev;
@@ -235,5 +248,6 @@ para.dv_cf = dv_cf;
 
 function f = errorfunc(x, noise)
 
-f = 0.5*(ones(size(x)) + erf(x/(noise*sqrt(2))));
+f = 50*(ones(size(x)) + erf(x/(noise*sqrt(2))));
+
 

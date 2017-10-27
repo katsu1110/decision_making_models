@@ -1,4 +1,4 @@
-function [para] = SDTsimulator(varargin)
+function [para] = SDTvariants(varargin)
 %% simulation of SDT using specified "noise", "weights", and "db"
 %% pre-set parameters
 % hdx = [0.3 0.2 0.1 0.01 -0.01 -0.1 -0.2 -0.3];
@@ -24,7 +24,7 @@ db = 100;
 nbin = 4;
 
 % figure
-plot_flag = 0;
+plot_flag = 1;
 
 j = 1;              
 while  j<= length(varargin)
