@@ -3,12 +3,12 @@ function [para] = Yates_history(varargin)
 close all;
 
 % input arguments
-nneuron = 10;
-len_tr = 500;
+nneuron = 5;
+len_tr = 100;
 tmax = 400;
 tau = 40;
-kernelgain_s = 0.04;
-kernelgain_c = 0.04;
+kernelgain_s = 0.03;
+kernelgain_c = 0.03;
 plot_flag = 1;
 j = 1;              
 while  j <= length(varargin)
@@ -42,6 +42,10 @@ hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.2*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
+hdxlab = cell(1, lenhdx);
+for i = 1:lenhdx
+    hdxlab{i} = num2str(hdx(i));
+end
 nbin = 7;
 
 % contrast
@@ -62,15 +66,21 @@ para.kernel_stm = kernel2;
 para.kernel_co = kernel1;
 
 % kernel for the history term
-h = 0:200;
-% kernel3 = log(1+h);
-% kernel3 = normalize(kernel3, -0.01, 0);
-tau3 = 20;
-kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
-hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
-kernel3 = kernel3 - 3*hn_offset;
-kernel3(1:2) = 0;
-kernel3 = normalize(-kernel3,0, 1);
+h = 0:250;
+kernel3 = log(1+h);
+kernel3 = normalize(kernel3, 0, 1);
+% tau3 = 25;
+% kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
+% hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
+% kernel3 = kernel3 - 3*hn_offset;
+% kernel3(1:2) = 0;
+% kernel3 = -kernel3;
+v = zeros(1, 2*nneuron);
+for i = 1:2*nneuron
+    v(i) = 0.01/(i^2);
+end
+toeplitzm = toeplitz(v);
+para.toeplitzm = toeplitzm;
 
 % figure;
 % plot(kernel3)
@@ -103,18 +113,33 @@ end
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
 stm = nan(len_tr, len_frame);
+stmmat = nan(len_tr, nbin);
 for i = 1:len_tr
-    stm_temp = datasample(hdx, nbin, 'Replace', true);
+    stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
 %     while abs(sum(stm_temp)) >= 0.1
 %         stm_temp = datasample(hdx, nbin, 'Replace', true);
 %     end
-%  
     begin = 1;
     for n = 1:nbin
-        stm(i, begin:begin+frameperbin-1) = stm_temp(n)*ones(1, frameperbin);
+        stm(i, begin:begin+frameperbin-1) = stmmat(i,n)*ones(1, frameperbin);
         begin = begin + frameperbin;
     end
 end
+
+% % debug stimulus
+% figure(123);
+% col = jet(nbin);
+% for n = 1:nbin
+%     c = histc(stmmat(:,n),unique(stmmat(:,n)));
+%     plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
+%     hold on;
+% end
+% legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
+% legend('boxoff')
+% xlabel('hdx')
+% set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
+% ylabel('counts (50000 trials)')
+% set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 % overall stimulus sign
 sumstm = sum(stm,2);
@@ -136,70 +161,71 @@ stm = [zeros(len_tr, offset), stm, zeros(len_tr, offset)];
 %     ylabel('mean stimulus')
 % end
 
-% sensory neurons' response
-for n = 1:nneuron
+% for debugging
+lenv = size(stm,2);
+figure(2);
+subplot(2,5,1)
+plot(kernel1);
+title('contrast')
 
-    % convolution with stimulus kernels
-    lenv = size(stm,2);
-    para.neuron(n).spk1 = nan(len_tr, lenv);
-    para.neuron(n).spk2 = para.neuron(n).spk1;
-    c = conv(kernel1, co);
-    s = conv(kernel2, stm(1,:));
-    para.neuron(n).spk1(1,:) = random('Poisson', exp(s(1:lenv) + c(1:lenv)), 1, lenv);
-    s = conv(-kernel2, stm(1,:));
-    para.neuron(n).spk2(1,:) = random('Poisson', exp(s(1:lenv) + c(1:lenv)), 1, lenv);
+subplot(2,5,2)
+plot(kernel2,'-b')
+hold on;
+plot(-kernel2, '-r')
+title('stimulus')
 
-    % for debugging
-    if n == 1
-        figure(2);
-        subplot(2,5,1)
-        plot(kernel1);
-        title('contrast')
+subplot(2,5,3)
+plot(kernel3)
+title('history')
 
-        subplot(2,5,2)
-        plot(kernel2,'-b')
-        hold on;
-        plot(-kernel2, '-r')
-        title('stimulus')
+subplot(2,5,6)
+c = conv(kernel1, co);
+plot(c(1:lenv));
+hold on;
+plot(co)
 
-        subplot(2,5,3)
-        plot(kernel3)
-        title('history')
+subplot(2,5,7)
+s = conv(kernel2, stm(1,:));
+plot(s(1:lenv))
+hold on;
+plot(stm(2,:))
 
-        subplot(2,5,6)
-        c = conv(kernel1, co);
-        plot(c(1:lenv));
-        hold on;
-        plot(co)
+subplot(2,5,8)
+onehot = zeros(1, lenv);
+onehot(offset+5) = 1;
+h = conv(kernel3, onehot);
+plot(h(1:lenv))
+hold on;
+plot(onehot)
 
-        subplot(2,5,7)
-        s = conv(kernel2, stm(2,:));
-        plot(s(1:lenv))
-        hold on;
-        plot(stm(2,:))
+subplot(2,5,9)
+plot(c(1:lenv) + s(1:lenv) + h(1:lenv))
+title('sum of all')
 
-        subplot(2,5,8)
-        h = conv(kernel3, para.neuron(n).spk1(1,:));
-        plot(h(1:lenv))
-        hold on;
-        plot(para.neuron(n).spk1(1,:))
+subplot(2,5,10)
+plot(exp(c(1:lenv) + s(1:lenv) + h(1:lenv)))
+title('nonlinearity')
 
-        subplot(2,5,9)
-        plot(c(1:lenv) + s(1:lenv) + h(1:lenv))
-        title('sum of all')
-
-        subplot(2,5,10)
-        plot(exp(c(1:lenv) + s(1:lenv) + h(1:lenv)))
-        title('nonlinearity')
-    end
-
-    for i = 2:len_tr
-        s = conv(kernel2, stm(i,:));
-        h = conv(kernel3, para.neuron(n).spk1(i-1,:));
-        para.neuron(n).spk1(i,:) = random('Poisson', exp(s(1:lenv) + c(1:lenv) + h(1:lenv))/10, 1, lenv);
-        s = conv(-kernel2, stm(i,:));
-        h = conv(kernel3, para.neuron(n).spk2(i-1,:));
-        para.neuron(n).spk2(i,:) = random('Poisson', exp(s(1:lenv) + c(1:lenv) + h(1:lenv))/10, 1, lenv);
+% sensory neurons' responses
+c = conv(kernel1, co);    
+for i = 1:len_tr
+    s1 = conv(kernel2, stm(i,:));
+    para.tr(i).spk1(:,1) = random('Poisson', exp(s1(1) + c(1))/10, nneuron, 1);
+    s2 = conv(-kernel2, stm(i,:));
+    para.tr(i).spk2(:,1) = random('Poisson', exp(s2(1) + c(1))/10, nneuron, 1);
+    for f = 2:lenv
+        h1 = 0;
+        h2 = 0;
+        for n = 1:nneuron
+            for k = 1:nneuron
+                temp = conv(toeplitzm(n,k)*kernel3, para.tr(i).spk1(n,f-1));
+                h1 = h1 + temp;
+                temp = conv(toeplitzm(n,k)*kernel3, para.tr(i).spk2(n,f-1));
+                h2 = h2 + temp;
+            end
+        end
+        para.tr(i).spk1(:,f) = random('Poisson', exp(s1(f) + c(f) + h1(1))/10,nneuron,1);
+        para.tr(i).spk2(:,f) = random('Poisson', exp(s2(f) + c(f) + h2(1))/10,nneuron,1);
     end
 end
 
@@ -208,6 +234,14 @@ end
 %     cvstm1(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
 % cvstm2(:, offset+1:offset+len_frame) = ...
 %     cvstm2(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
+
+% reshape struct
+for n = 1:nneuron
+    for i = 1:len_tr
+        para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:);
+        para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:);
+    end
+end
 
 % evidence
 dv1 = zeros(len_tr, len_frame);
@@ -250,16 +284,16 @@ end
 
 para.psth.stm_diff = psth_stm;
 para.psth.ch_diff = psth_ch;
-para.psth.stm_raw0 = mean(para.neuron(k).spk1(stmsign_n2, 1:length(time)),1);
-para.psth.stm_raw1 = mean(para.neuron(k).spk1(stmsign_p2, 1:length(time)),1);
-para.psth.ch_raw0 = mean(para.neuron(k).spk1(ch==1, 1:length(time)),1);
-para.psth.ch_raw1 = mean(para.neuron(k).spk1(ch==0, 1:length(time)),1);
+para.psth.stm_null = mean(para.neuron(k).spk1(stmsign_n2, 1:length(time)),1);
+para.psth.stm_pref = mean(para.neuron(k).spk1(stmsign_p2, 1:length(time)),1);
+para.psth.ch_pref = mean(para.neuron(k).spk1(ch==1, 1:length(time)),1);
+para.psth.ch_null = mean(para.neuron(k).spk1(ch==0, 1:length(time)),1);
 
 
 if plot_flag==1    
         
     figure(1);
-    subplot(2,4,[5 6])
+    subplot(2,4,5)
     % raster
 %     rng(19891220)
     tr = datasample(1:len_tr,1);
@@ -267,11 +301,15 @@ if plot_flag==1
     ras2 = zeros(nneuron, len_frame+2*offset);
     spkch1 = zeros(1, len_frame + 2*offset);
     spkch2 = zeros(1, len_frame + 2*offset);
+    spkstm1 = zeros(1, len_frame + 2*offset);
+    spkstm2 = zeros(1, len_frame + 2*offset);
     for n = 1:nneuron
             ras1(n,:) = 1*(para.neuron(n).spk1(tr,:) > 0);
             ras2(n,:) = 1*(para.neuron(n).spk2(tr,:) > 0);
             spkch1 = spkch1 + mean(para.neuron(n).spk1(ch==1, 1:(len_frame+2*offset)), 1);
             spkch2 = spkch2 + mean(para.neuron(n).spk1(ch==0, 1:(len_frame+2*offset)), 1);
+            spkstm1 = spkstm1 + mean(para.neuron(n).spk1(stmsign_p2, 1:(len_frame+2*offset)), 1);
+            spkstm2 = spkstm2 + mean(para.neuron(n).spk1(stmsign_n2, 1:(len_frame+2*offset)), 1);
     end
     imagesc(time, 1:2*nneuron, [ras2; ras1])
     colormap(gca, flipud(bone))
@@ -294,9 +332,9 @@ if plot_flag==1
 
     % psth
     subplot(2,4,6)
-    plot(time, spkch1/nneuron, '-b', 'linewidth',1)
+    plot(time, spkstm1/nneuron, '-b', 'linewidth',1)
     hold on;
-    plot(time, spkch2/nneuron, '-r', 'linewidth',1)
+    plot(time, spkstm2/nneuron, '-r', 'linewidth',1)
     hold on;
     yy = get(gca, 'YLim');
     begin = 1;
@@ -307,7 +345,7 @@ if plot_flag==1
     end
     xlim([-offset len_frame+offset])
     ylim(yy)    
-    ylabel('psth (by choice)')
+    ylabel('psth (by stm)')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
     
     subplot(2,4,7)
