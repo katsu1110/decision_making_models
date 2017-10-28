@@ -1,13 +1,13 @@
 function [para] = Yates_simple(varargin)
 
 % input arguments
-len_tr = 500;
+len_tr = 1000;
 tmax = 400;
 tau = 40;
 % tmax = 150;
 % tau = 10;
 kernelgain_s = 0.04;
-kernelgain_c = 0.01;
+kernelgain_c = 0.04;
 plot_flag = 1;
 j = 1;              
 while  j <= length(varargin)
@@ -40,6 +40,11 @@ g = [0.1059    0.4706    0.2157];
 hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.2*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
+lenhdx = length(hdx);
+hdxlab = cell(1, lenhdx);
+for i = 1:lenhdx
+    hdxlab{i} = num2str(hdx(i));
+end
 nbin = 7;
 
 % contrast
@@ -63,7 +68,7 @@ time = [1:len_frame+2*offset] - offset;
     
 if plot_flag == 1
     close all;
-    figure;
+    figure(1);
     % visualize verified convolved responses
 %     c = jet(lenhdx);
 %     for h = 1:lenhdx
@@ -94,15 +99,16 @@ end
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
 stm = nan(len_tr, len_frame);
+stmmat = nan(len_tr, nbin);
 for i = 1:len_tr
-    stm_temp = datasample(hdx, nbin, 'Replace', true);
+    stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
 %     while abs(sum(stm_temp)) >= 0.1
 %         stm_temp = datasample(hdx, nbin, 'Replace', true);
 %     end
 %  
     begin = 1;
     for n = 1:nbin
-        stm(i, begin:begin+frameperbin-1) = stm_temp(n)*ones(1, frameperbin);
+        stm(i, begin:begin+frameperbin-1) = stmmat(i,n)*ones(1, frameperbin);
         begin = begin + frameperbin;
     end
 end
@@ -117,6 +123,37 @@ stmsign_p2 = stmsign > 0 & sumstm > med_p;
 stmsign_n1 = stmsign < 0 & sumstm > med_n;
 stmsign_n2 = stmsign < 0 & sumstm < med_n;
 
+
+% debug stimulus
+figure(123);
+col = jet(nbin);
+for n = 1:nbin
+    subplot(2,2,1)
+    c = histc(stmmat(stmsign_p2,n),unique(stmmat(stmsign_p2,n)));
+    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
+    hold on;
+    
+    subplot(2,2,2)
+    c = histc(stmmat(stmsign_n2,n),unique(stmmat(stmsign_n2,n)));
+    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
+    hold on;
+end
+subplot(2,2,1)
+legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
+legend('boxoff')
+title('pref stm')
+xlabel('hdx')
+set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
+ylabel('counts (50000 trials)')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+
+subplot(2,2,2)
+legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
+legend('boxoff')
+title('null stm')
+xlabel('hdx')
+set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 % include offset
 stm = [zeros(len_tr, offset), stm, zeros(len_tr, offset)];
@@ -167,6 +204,81 @@ cvstm2 = exp(cvstm2);
 % cvstm2(:, offset+1:offset+len_frame) = ...
 %     cvstm2(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
 
+% for debugging
+lens = size(stm,2);
+figure(22);
+subplot(2,4,1)
+plot(kernel1);
+xlim([1 tmax])
+title('contrast')
+
+subplot(2,4,5)
+plot(kernel2,'-b')
+hold on;
+plot(-kernel2, '-r')
+xlim([1 tmax])
+title('stimulus')
+
+subplot(2,4,2)
+c = conv(kernel1, co);
+plot(c(1:lens));
+hold on;
+plot(co)
+xlim([1 len_frame+2*offset])
+
+subplot(2,4,3)
+plot(cumsum(c,2))
+hold on;
+yy = get(gca, 'YLim');
+begin = 1+offset;
+for i = 1:8
+    plot(begin*[1 1], yy, '-m')
+    hold on;
+    begin = begin + frameperbin;
+end
+title('cumsum co * ker')
+xlim([1 len_frame+2*offset])
+
+subplot(2,4,6)
+% pref  = [zeros(1, offset), 0.2*ones(1, frameperbin*7), zeros(1,offset)];
+s1 = conv(kernel2, stm(1,:));
+plot(s1(1:lens), '-b')
+hold on;
+s2 = conv(-kernel2, stm(1,:));
+plot(s2(1:lens), '-r')
+hold on;
+plot(stm(1,:),'-k')
+xlim([1 len_frame+2*offset])
+
+subplot(2,4,7)
+plot(c(1:lens) + s1(1:lens), '-b')
+hold on;
+plot(c(1:lens) + s2(1:lens), '-r')
+title('sum of all')
+xlim([1 len_frame+2*offset])
+
+subplot(2,4,8)
+plot(exp(c(1:lens) + s1(1:lens)),'-b')
+hold on;
+plot(exp(c(1:lens) + s2(1:lens)),'-r')
+title('nonlinearity')
+xlim([1 len_frame+2*offset])
+
+subplot(2,4,4)
+plot(cumsum(exp(c(1:lens) + s1(1:lens)),2) - ...
+    cumsum(exp(c(1:lens) + s2(1:lens)),2));
+hold on;
+yy = get(gca, 'YLim');
+begin = 1+offset;
+for i = 1:8
+    plot(begin*[1 1], yy, '-m')
+    hold on;
+    begin = begin + frameperbin;
+end
+title('cumsum nonlinear')
+xlim([1 len_frame+2*offset])
+
+
 % evidence
 dv1 = cumsum(cvstm1(:, offset+1:offset+len_frame),2);
 dv2 = cumsum(cvstm2(:, offset+1:offset+len_frame),2);
@@ -179,6 +291,37 @@ ch(ch==-1) = 0;
 
 disp(['far choice: ' num2str(sum(ch==1)) ...
     ', near choice: ' num2str(sum(ch==0))])
+
+% debug stimulus
+figure(123);
+col = jet(nbin);
+for n = 1:nbin
+    subplot(2,2,3)
+    c = histc(stmmat(ch==1,n),unique(stmmat(ch==1,n)));
+    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
+    hold on;
+    
+    subplot(2,2,4)
+    c = histc(stmmat(ch==0,n),unique(stmmat(ch==0,n)));
+    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
+    hold on;
+end
+subplot(2,2,3)
+legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
+legend('boxoff')
+title('ch 1')
+xlabel('hdx')
+set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
+ylabel('counts (50000 trials)')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+
+subplot(2,2,4)
+legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
+legend('boxoff')
+title('ch 2')
+xlabel('hdx')
+set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 % normalization
 cvstm1 = normalize(cvstm1, 0, 1);
@@ -204,6 +347,7 @@ para.psth.ch_null = mean(cvstm1(ch==0, 1:length(time)),1);
 
 % PSTH
 if plot_flag==1
+    figure(1);
 %     subplot(2,4,6)
     subplot(2,3,4)
     plot(time, mean(cvstm1(stmsign_p2, 1:length(time)),1), '-b', 'linewidth',2)
@@ -250,6 +394,7 @@ if plot_flag==1
     end
     ylim(yy)    
     ylabel('psth (by choice)')
+    
 end
 
 % confidence
@@ -257,6 +402,25 @@ conf = abs(ev);
 % conf = conf + normrnd(median(conf), 1*median(conf), size(conf));
 med = median(conf);
 disp(['median confidence: ' num2str(med)])
+
+% % debug confidence & stm
+% figure(1234);
+% plot(time, mean(cvstm1(conf > med, 1:length(time)),1), '-b', 'linewidth',2)
+% hold on;
+% plot(time, mean(cvstm1(conf < med, 1:length(time)),1), '-r', 'linewidth',2)
+% hold on;
+% plot(time, mean(cvstm2(conf > med, 1:length(time)),1), '--b', 'linewidth',2)
+% hold on;
+% plot(time, mean(cvstm2(conf < med, 1:length(time)),1), '--r', 'linewidth',2)
+% yy = get(gca, 'YLim');
+% begin = 1;
+% for i = 1:nbin+1
+%     hold on;
+%     plot(begin*[1 1],yy, ':k')
+%     begin = begin + frameperbin;
+% end
+% ylim(yy)    
+% ylabel('psth (by confidence)')
 
 % if plot_flag==1
 %     subplot(2,4,5)
@@ -324,6 +488,7 @@ wl = logregPK(hdxmat(conf < med, :), ch(conf < med));
 wn = mean([wh, wl]);
 
 if plot_flag==1
+    figure(1);
     % visualize kernels
 %     subplot(2,4,4)
     subplot(2,3,3)
@@ -390,7 +555,7 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
     % additional figures for paper
-    figure;
+    figure(3);
     subplot(1,3,1)
     imagesc(1:nbin, hdx, tkernel_h)
     colormap(pink)

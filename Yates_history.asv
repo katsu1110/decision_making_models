@@ -140,33 +140,16 @@ stmsign_n2 = stmsign < 0 & sumstm < med_n;
 figure(123);
 col = jet(nbin);
 for n = 1:nbin
-    subplot(1,2,1)
-    c = histc(stmmat(stmsign_p2,n),unique(stmmat(stmsign_p2,n)))
-    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
-    hold on;
-    
-    subplot(1,2,2)
-    c = histc(stmmat(stmsign_n2,n),unique(stmmat(stmsign_n2,n)))
+    c = histc(stmmat(:,n),unique(stmmat(:,n)));
     plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
     hold on;
 end
-subplot(1,2,1)
 legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
 legend('boxoff')
-title('pref stm')
 xlabel('hdx')
 set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
 ylabel('counts (50000 trials)')
 set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-
-subplot(1,2,2)
-legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
-legend('boxoff')
-title('null stm')
-xlabel('hdx')
-set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
-set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-
 
 % include offset
 stm = [zeros(len_tr, offset), stm, zeros(len_tr, offset)];
