@@ -2,7 +2,7 @@ function [para] = SDTvariants(varargin)
 %% simulation of SDT using specified "noise", "weights", and "db"
 %% pre-set parameters
 % hdx = [0.3 0.2 0.1 0.01 -0.01 -0.1 -0.2 -0.3];
-hdx = 0.2*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 kernel = [0.1 0.5 0.2 0.05 0 -0.05 -0.2 -0.5 -0.1];
 bias = 0;
 % threshold = 30;
@@ -24,7 +24,7 @@ db = 100;
 nbin = 4;
 
 % figure
-plot_flag = 1;
+plot_flag = 0;
 
 j = 1;              
 while  j<= length(varargin)
@@ -95,9 +95,6 @@ if db==100
 else
     conf = (2/pi)*atan(abs(db_advs(:,end))./(dt/len_frame));
 end
-
-% % median split of |DV|/dt
-% conf = (2/pi)*(atan(abs(db_advs(:,end))./(dt/len_frame)));
 
 % add noise on confidence judgement
 conf = conf + normrnd(median(conf), 0.2*(max(max(conf)) - min(min(conf))), size(conf));
@@ -186,6 +183,7 @@ if plot_flag==1
     caxis(cfix)
     subplot(1,3,2)
     caxis(cfix)
+    cfix
 
     subplot(1,3,3)
     nom = mean([amph, ampl]);

@@ -4,9 +4,9 @@ close all;
 
 % input arguments
 nneuron = 5;
-len_tr = 100;
-tmax = 400;
-tau = 40;
+len_tr = 1000;
+tmax = 300;
+tau = 30;
 kernelgain_s = 0.03;
 kernelgain_c = 0.03;
 plot_flag = 1;
@@ -38,7 +38,7 @@ end
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
 
-hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+hdx = 0.2*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.2*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
@@ -68,7 +68,7 @@ para.kernel_co = kernel1;
 % kernel for the history term
 h = 0:250;
 kernel3 = log(1+h);
-kernel3 = normalize(kernel3, 0, 1);
+kernel3 = normalize(kernel3, 0, 0);
 % tau3 = 25;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
@@ -141,12 +141,12 @@ figure(123);
 col = jet(nbin);
 for n = 1:nbin
     subplot(1,2,1)
-    c = histc(stmmat(stmsign_p2,n),unique(stmmat(stmsign_p2,n)))
+    c = histc(stmmat(stmsign_p2,n),unique(stmmat(stmsign_p2,n)));
     plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
     hold on;
     
     subplot(1,2,2)
-    c = histc(stmmat(stmsign_n2,n),unique(stmmat(stmsign_n2,n)))
+    c = histc(stmmat(stmsign_n2,n),unique(stmmat(stmsign_n2,n)));
     plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
     hold on;
 end
@@ -280,10 +280,6 @@ ch(ch==-1) = 0;
 
 disp(['far choice: ' num2str(sum(ch==1)) ...
     ', near choice: ' num2str(sum(ch==0))])
-
-% % normalization
-% cvstm1 = normalize(cvstm1, 0, 1);
-% cvstm2 = normalize(cvstm2, 0, 1);
 
 % debug psth
 k = datasample(1:nneuron, 1);
@@ -597,4 +593,3 @@ a = (newmax - newmin)/(max(max(v)) - min(min(v)));
 b = newmax - max(max(v))*a;
 
 normalized_vector = a.*v + b;
-
