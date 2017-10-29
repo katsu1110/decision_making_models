@@ -1,10 +1,16 @@
 function [para] = Yates_simple(varargin)
+%% "stimulus-to-SensoryNeuron model' as presented in
+%% Yates et al., 2017
+%
+% written by Katsuhisa (10.2017)
+% +++++++++++++++++++++++++++++++++++++++++++++++
+
 
 % input arguments
 nneuron = 3;
 len_tr = 1000;
-tmax = 350;
-tau = 35;
+tmax = 400;
+tau = 40;
 % tmax = 150;
 % tau = 10;
 kernelgain_s = 0.04;
@@ -38,8 +44,8 @@ end
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
 
-hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
-% hdx = 0.2*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
+% hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
 hdxlab = cell(1, lenhdx);
@@ -52,6 +58,7 @@ nbin = 7;
 offset = 100;
 co = 1*[zeros(1,offset),ones(1,len_frame),zeros(1,offset)];
 
+%%
 % alpha function as a stimulus kernel
 t = 0:tmax;
 kernel1 = exp(-t/tau).*(1 - exp(-t/tau));
@@ -96,14 +103,15 @@ if plot_flag == 1
     legend('boxoff')
 end
 
+%%
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
 stm = nan(len_tr, len_frame);
 stmmat = nan(len_tr, nbin);
 for i = 1:len_tr
     stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
-%     while abs(sum(stm_temp)) >= 0.1
-%         stm_temp = datasample(hdx, nbin, 'Replace', true);
+%     while abs(sum(stmmat(i,:))) >= 0.1
+%         stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
 %     end
 %  
     begin = 1;
@@ -125,38 +133,39 @@ stmsign_n2 = stmsign < 0 & sumstm < med_n;
 
 
 % debug stimulus
+figure(12);
+histogram(sumstm)
+xlabel('actual signal strength')
+
 figure(123);
-col = jet(nbin);
+c1 = zeros(nbin, lenhdx);
+c2 = zeros(nbin, lenhdx);
 for n = 1:nbin
-    subplot(2,2,1)
-    c = histc(stmmat(stmsign_p2,n),unique(stmmat(stmsign_p2,n)));
-    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
-    hold on;
-    
-    subplot(2,2,2)
-    c = histc(stmmat(stmsign_n2,n),unique(stmmat(stmsign_n2,n)));
-    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
-    hold on;
+    for m = 1:lenhdx
+        c1(n,m) = sum(stmmat(stmsign_p2,n)==hdx(m));
+        c2(n,m) = sum(stmmat(stmsign_n2,n)==hdx(m));
+    end
 end
 subplot(2,2,1)
-legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
-legend('boxoff')
-title('pref stm')
+imagesc(1:lenhdx, 1:nbin, c1)
+colorbar
 xlabel('hdx')
+ylabel('pulse')
+title('pref stm')
 set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
-ylabel('counts (50000 trials)')
 set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 subplot(2,2,2)
-legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
-legend('boxoff')
-title('null stm')
+imagesc(1:lenhdx, 1:nbin, c2)
+colorbar
 xlabel('hdx')
+title('null stm')
 set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
 set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 % include offset
 stm = [zeros(len_tr, offset), stm, zeros(len_tr, offset)];
+disp('stimulus generated')
 
 % if plot_flag==1
 %     subplot(2,4,2)
@@ -164,7 +173,8 @@ stm = [zeros(len_tr, offset), stm, zeros(len_tr, offset)];
 %     ylabel('mean stimulus')
 % end
 
-% convolution with stimulus kernels
+%%
+% convolution with stimulus kernels and nonlinearity
 lenv = size(stm,2);
 c = conv(kernel1, co);
 for i = 1:len_tr
@@ -172,19 +182,18 @@ for i = 1:len_tr
     para.tr(i).spk2 = nan(nneuron, lenv);
     s1 = conv(kernel2, stm(i,:));
     s2 = conv(-kernel2, stm(i,:));
-    for f = 1:lenv
-        para.tr(i).spk1(:,f) = random('Poisson', exp(s1(f) + c(f))/10, nneuron, 1);    
-        para.tr(i).spk2(:,f) = random('Poisson', exp(s2(f) + c(f))/10, nneuron, 1);
-    end
-end
-
-% reshape struct
-for n = 1:nneuron
-    for i = 1:len_tr
+    para.tr(i).fr1 = exp(s1(1:lenv)+c(1:lenv))/10;
+    para.tr(i).fr2 = exp(s2(1:lenv)+c(1:lenv))/10;
+    for n = 1:nneuron
+        para.tr(i).spk1(n,:) = arrayfun(@(x) poissrnd(x), para.tr(i).fr1);    
+        para.tr(i).spk2(n,:) = arrayfun(@(x) poissrnd(x), para.tr(i).fr2);
+        
+        % reshape this structure
         para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:);
         para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:);
     end
 end
+disp('sensory neural activity generated')
 
 % for debugging
 lens = size(stm,2);
@@ -260,8 +269,7 @@ end
 title('cumsum nonlinear')
 xlim([1 len_frame+2*offset])
 
-
-% evidence
+%%
 % evidence
 dv1 = zeros(len_tr, len_frame);
 dv2 = zeros(len_tr, len_frame);
@@ -276,6 +284,7 @@ for n = 1:nneuron
     para.neuron(n).mfr2 = mean(para.neuron(n).spk2(:));
 end
 ev = dv1(:,end) - dv2(:, end);
+disp('decision variables computed')
 
 % choice
 ch = sign(ev);
@@ -287,32 +296,28 @@ disp(['far choice: ' num2str(sum(ch==1)) ...
 
 % debug stimulus
 figure(123);
-col = jet(nbin);
+c1 = zeros(nbin, lenhdx);
+c2 = zeros(nbin, lenhdx);
 for n = 1:nbin
-    subplot(2,2,3)
-    c = histc(stmmat(ch==1,n),unique(stmmat(ch==1,n)));
-    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
-    hold on;
-    
-    subplot(2,2,4)
-    c = histc(stmmat(ch==0,n),unique(stmmat(ch==0,n)));
-    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
-    hold on;
+    for m = 1:lenhdx
+        c1(n,m) = sum(stmmat(ch==1,n)==hdx(m));
+        c2(n,m) = sum(stmmat(ch==0,n)==hdx(m));
+    end
 end
 subplot(2,2,3)
-legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
-legend('boxoff')
-title('ch 1')
+imagesc(1:lenhdx, 1:nbin, c1)
+colorbar
 xlabel('hdx')
+ylabel('pulse')
+title('ch 1')
 set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
-ylabel('counts (50000 trials)')
 set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 subplot(2,2,4)
-legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
-legend('boxoff')
-title('ch 2')
+imagesc(1:lenhdx, 1:nbin, c2)
+colorbar
 xlabel('hdx')
+title('ch 0')
 set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
 set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
@@ -360,9 +365,9 @@ if plot_flag==1
     imagesc(time, 1:2*nneuron, [ras2; ras1])
     colormap(gca, flipud(bone))
     hold on;
-    plot(time, nneuron*ones(1, length(time)), '-m')
+    plot(time, nneuron*ones(1, length(time))+0.5, '-m')
     hold on;
-    plot(time, nneuron+ 3*nneuron*stm(tr,:), '-g', 'linewidth',2)
+    plot(time, nneuron+0.5 + 3*nneuron*stm(tr,:), '-g', 'linewidth',2)
     hold on;
     yy = get(gca, 'YLim');
     begin = 1;
@@ -415,6 +420,7 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
 
+%%
 % confidence
 conf = abs(ev);
 % conf = conf + normrnd(median(conf), 1*median(conf), size(conf));
@@ -488,6 +494,7 @@ for a = 1:nbin
     amph(a) = tkernel_h(:,a)'*mean(tkernel_h,2);
     ampl(a) = tkernel_l(:,a)'* mean(tkernel_l,2);
 end
+disp('PK computed')
 
 para.amp_h = amph;
 para.amp_l = ampl;
@@ -572,8 +579,9 @@ if plot_flag==1
 
     % additional figures for paper
     figure(3);
+    nom = mean([tkernel_h(:); tkernel_l(:)]);
     subplot(1,3,1)
-    imagesc(1:nbin, hdx, tkernel_h)
+    imagesc(1:nbin, hdx, tkernel_h/nom)
     colormap(pink)
     c_h = caxis;
     xlabel('time bin')
@@ -582,7 +590,7 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
     subplot(1,3,2)
-    imagesc(1:nbin, hdx, tkernel_l)
+    imagesc(1:nbin, hdx, tkernel_l/nom)
     colormap(pink)
     c_l = caxis;
     set(gca, 'XTick', 1:nbin)
@@ -593,7 +601,8 @@ if plot_flag==1
     caxis(cfix)
     subplot(1,3,2)
     caxis(cfix)
-    cfix
+    disp('color range:')
+    disp(cfix)
 
     subplot(1,3,3)
     nom = mean([amph, ampl]);
@@ -627,6 +636,7 @@ for i = 1:size(hdxmat, 2)
     b = glmfit(hdxmat(:, i), ch, 'binomial', 'link', 'logit', 'constant', 'on');
     w(i) = b(2);
 end
+
 
 function [normalized_vector] = normalize(v, newmin, newmax)
 
