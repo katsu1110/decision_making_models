@@ -8,11 +8,11 @@ close all;
 
 % input arguments
 nneuron = 10;
-len_tr = 1000;
+len_tr = 50000;
 tmax = 400;
 tau = 40;
-kernelgain_s = 0.03;
-kernelgain_c = 0.03;
+kernelgain_s = 0.05;
+kernelgain_c = 0.05;
 plot_flag = 1;
 j = 1;              
 while  j <= length(varargin)
@@ -74,7 +74,7 @@ para.kernel_co = kernel1;
 % kernel for the history term
 ht = 0:10;
 kernel3 = log(1+ht);
-kernel3 = normalize(kernel3, -0.025, 0);
+kernel3 = normalize(kernel3, -0.01, 0);
 % tau3 = 10;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
@@ -228,9 +228,9 @@ h1 = zeros(1,lenv+ht(end));
 h2 = zeros(1,lenv+ht(end));
 for i = 1:len_tr
     s1 = conv(kernel2, stm(i,:));
-    para.tr(i).spk1(:,1) = poissrnd(exp(s1(1) + c(1))/10, nneuron, 1);
+    para.tr(i).spk1(:,1) = poissrnd(exp(s1(1) + c(1)), nneuron, 1);
     s2 = conv(-kernel2, stm(i,:));
-    para.tr(i).spk2(:,1) = poissrnd(exp(s2(1) + c(1))/10, nneuron, 1);
+    para.tr(i).spk2(:,1) = poissrnd(exp(s2(1) + c(1)), nneuron, 1);
     for f = 2:lenv
         for n = 1:nneuron
 %             for k = 1:nneuron
@@ -244,8 +244,8 @@ for i = 1:len_tr
             temp = conv(kernel3, para.tr(i).spk2(n,f-1));
             h2(f:f+length(temp)-1) = h2(f:f+length(temp)-1) + temp;
             
-            para.tr(i).spk1(:,f) = poissrnd(exp(s1(f) + c(f) + h1(f))/10,nneuron,1);
-            para.tr(i).spk2(:,f) = poissrnd(exp(s2(f) + c(f) + h2(f))/10,nneuron,1);
+            para.tr(i).spk1(:,f) = poissrnd(exp(s1(f) + c(f) + h1(f)),nneuron,1);
+            para.tr(i).spk2(:,f) = poissrnd(exp(s2(f) + c(f) + h2(f)),nneuron,1);
         end
     end
 end
