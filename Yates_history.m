@@ -1,12 +1,16 @@
 function [para] = Yates_history(varargin)
+%% Yates model ("stimulus-to-MT model") with history term
+%
+% written by Katsuhisa (30.10.17)
+% ++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 close all;
 
 % input arguments
-nneuron = 5;
+nneuron = 10;
 len_tr = 1000;
-tmax = 300;
-tau = 30;
+tmax = 400;
+tau = 40;
 kernelgain_s = 0.03;
 kernelgain_c = 0.03;
 plot_flag = 1;
@@ -38,8 +42,8 @@ end
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
 
-hdx = 0.2*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
-% hdx = 0.2*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
+% hdx = 0.2*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
 hdxlab = cell(1, lenhdx);
@@ -52,6 +56,7 @@ nbin = 7;
 offset = 100;
 co = 1*[zeros(1,offset),ones(1,len_frame),zeros(1,offset)];
 
+%%
 % alpha function as a stimulus kernel
 t = 0:tmax;
 kernel1 = exp(-t/tau).*(1 - exp(-t/tau));
@@ -65,11 +70,12 @@ kernel2 = kernelgain_s*kernel2/max(kernel2);
 para.kernel_stm = kernel2;
 para.kernel_co = kernel1;
 
+%%
 % kernel for the history term
-h = 0:250;
-kernel3 = log(1+h);
-kernel3 = normalize(kernel3, 0, 0);
-% tau3 = 25;
+ht = 0:10;
+kernel3 = log(1+ht);
+kernel3 = normalize(kernel3, -0.025, 0);
+% tau3 = 10;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
 % kernel3 = kernel3 - 3*hn_offset;
@@ -82,9 +88,7 @@ end
 toeplitzm = toeplitz(v);
 para.toeplitzm = toeplitzm;
 
-% figure;
-% plot(kernel3)
-
+%%
 time = [1:len_frame+2*offset] - offset;
     
 if plot_flag == 1
@@ -110,15 +114,14 @@ if plot_flag == 1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
 
+%%
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
 stm = nan(len_tr, len_frame);
 stmmat = nan(len_tr, nbin);
 for i = 1:len_tr
     stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
-%     while abs(sum(stm_temp)) >= 0.1
-%         stm_temp = datasample(hdx, nbin, 'Replace', true);
-%     end
+
     begin = 1;
     for n = 1:nbin
         stm(i, begin:begin+frameperbin-1) = stmmat(i,n)*ones(1, frameperbin);
@@ -131,11 +134,12 @@ sumstm = sum(stm,2);
 stmsign = sign(sumstm);
 med_p = median(sumstm(stmsign > 0));
 med_n = median(sumstm(stmsign < 0));
-% stmsign_p1 = stmsign > 0 & sumstm < med_p;
 stmsign_p2 = stmsign > 0 & sumstm > med_p;
-% stmsign_n1 = stmsign < 0 & sumstm > med_n;
 stmsign_n2 = stmsign < 0 & sumstm < med_n;
 
+disp('stimulus generated')
+
+%%
 % debug stimulus
 figure(123);
 col = jet(nbin);
@@ -171,12 +175,7 @@ set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 % include offset
 stm = [zeros(len_tr, offset), stm, zeros(len_tr, offset)];
 
-% if plot_flag==1
-%     subplot(2,4,2)
-%     plot(time, mean(stm(:, 1:length(time)),1), '-k')
-%     ylabel('mean stimulus')
-% end
-
+%%
 % for debugging
 lenv = size(stm,2);
 figure(2);
@@ -222,29 +221,35 @@ subplot(2,5,10)
 plot(exp(c(1:lenv) + s(1:lenv) + h(1:lenv)))
 title('nonlinearity')
 
+%%
 % sensory neurons' responses
 c = conv(kernel1, co);    
+h1 = zeros(1,lenv+ht(end));
+h2 = zeros(1,lenv+ht(end));
 for i = 1:len_tr
     s1 = conv(kernel2, stm(i,:));
-    para.tr(i).spk1(:,1) = random('Poisson', exp(s1(1) + c(1))/10, nneuron, 1);
+    para.tr(i).spk1(:,1) = poissrnd(exp(s1(1) + c(1))/10, nneuron, 1);
     s2 = conv(-kernel2, stm(i,:));
-    para.tr(i).spk2(:,1) = random('Poisson', exp(s2(1) + c(1))/10, nneuron, 1);
+    para.tr(i).spk2(:,1) = poissrnd(exp(s2(1) + c(1))/10, nneuron, 1);
     for f = 2:lenv
-        h1 = 0;
-        h2 = 0;
         for n = 1:nneuron
-            for k = 1:nneuron
-                temp = conv(toeplitzm(n,k)*kernel3, para.tr(i).spk1(n,f-1));
-                h1 = h1 + temp;
-                temp = conv(toeplitzm(n,k)*kernel3, para.tr(i).spk2(n,f-1));
-                h2 = h2 + temp;
-            end
+%             for k = 1:nneuron
+%                 temp = conv(toeplitzm(n,k)*kernel3, para.tr(i).spk1(n,f-1));
+%                 h1 = h1 + temp;
+%                 temp = conv(toeplitzm(n,k)*kernel3, para.tr(i).spk2(n,f-1));
+%                 h2 = h2 + temp;
+%             end
+            temp = conv(kernel3, para.tr(i).spk1(n,f-1));
+            h1(f:f+length(temp)-1) = h1(f:f+length(temp)-1) + temp;
+            temp = conv(kernel3, para.tr(i).spk2(n,f-1));
+            h2(f:f+length(temp)-1) = h2(f:f+length(temp)-1) + temp;
+            
+            para.tr(i).spk1(:,f) = poissrnd(exp(s1(f) + c(f) + h1(f))/10,nneuron,1);
+            para.tr(i).spk2(:,f) = poissrnd(exp(s2(f) + c(f) + h2(f))/10,nneuron,1);
         end
-        para.tr(i).spk1(:,f) = random('Poisson', exp(s1(f) + c(f) + h1(1))/10,nneuron,1);
-        para.tr(i).spk2(:,f) = random('Poisson', exp(s2(f) + c(f) + h2(1))/10,nneuron,1);
     end
 end
-
+disp('spikes generated')
 % % noise
 % cvstm1(:, offset+1:offset+len_frame) = ...
 %     cvstm1(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
@@ -259,6 +264,7 @@ for n = 1:nneuron
     end
 end
 
+%%
 % evidence
 dv1 = zeros(len_tr, len_frame);
 dv2 = zeros(len_tr, len_frame);
@@ -273,6 +279,7 @@ end
 
 ev = dv1(:,end) - dv2(:, end);
 
+%%
 % choice
 ch = sign(ev);
 ch(ch==0) = datasample([-1 1], sum(ch==0), 'Replace', true);
@@ -281,6 +288,7 @@ ch(ch==-1) = 0;
 disp(['far choice: ' num2str(sum(ch==1)) ...
     ', near choice: ' num2str(sum(ch==0))])
 
+%%
 % debug psth
 k = datasample(1:nneuron, 1);
 begin = offset + 1;
@@ -301,7 +309,7 @@ para.psth.stm_pref = mean(para.neuron(k).spk1(stmsign_p2, 1:length(time)),1);
 para.psth.ch_pref = mean(para.neuron(k).spk1(ch==1, 1:length(time)),1);
 para.psth.ch_null = mean(para.neuron(k).spk1(ch==0, 1:length(time)),1);
 
-
+%%
 if plot_flag==1    
         
     figure(1);
@@ -381,11 +389,13 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
 
+%%
 % confidence
 conf = abs(ev);
 % conf = conf + normrnd(median(conf), 1*median(conf), size(conf));
 med = median(conf);
 
+%%
 % debug confidence
 figure(4);
 histogram(conf)
@@ -419,6 +429,7 @@ disp(['median confidence: ' num2str(med)])
 % pkh = getKernel(stm(conf > med, offset+1:offset+len_frame), ch(conf > med));
 % pkl = getKernel(stm(conf < med, offset+1:offset+len_frame), ch(conf < med));
 
+%%
 % time-resolved kernel
 tkernel = nan(lenhdx, nbin);
 tkernel_h = nan(lenhdx, nbin);
@@ -449,6 +460,7 @@ para.amp_h = amph;
 para.amp_l = ampl;
 para.amp_diff = amph - ampl;
 
+%%
 % kernel amplitude using logistic regression
 hdxmat = zeros(len_tr, nbin);
 begin = offset + 1;
@@ -461,6 +473,7 @@ wh = logregPK(hdxmat(conf > med, :), ch(conf > med));
 wl = logregPK(hdxmat(conf < med, :), ch(conf < med));
 wn = mean([wh, wl]);
 
+%%
 if plot_flag==1
     figure(1);
     % visualize kernels
@@ -565,6 +578,8 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
 
+%% 
+% subfunctions
 function [pk0] = getKernel(hdxmat, ch)
 
 % trial averaged stimulus distributions
