@@ -8,7 +8,7 @@ close all;
 
 % input arguments
 nneuron = 10;
-len_tr = 50000;
+len_tr = 500;
 tmax = 400;
 tau = 40;
 kernelgain_s = 0.05;
@@ -72,9 +72,9 @@ para.kernel_co = kernel1;
 
 %%
 % kernel for the history term
-ht = 0:10;
+ht = 0:8;
 kernel3 = log(1+ht);
-kernel3 = normalize(kernel3, -0.01, 0);
+kernel3 = normalize(kernel3, -0.001, 0);
 % tau3 = 10;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
@@ -239,10 +239,19 @@ for i = 1:len_tr
 %                 temp = conv(toeplitzm(n,k)*kernel3, para.tr(i).spk2(n,f-1));
 %                 h2 = h2 + temp;
 %             end
+
+%             % cumulative history terms
+%             temp = conv(kernel3, para.tr(i).spk1(n,f-1));
+%             h1(f:f+length(temp)-1) = h1(f:f+length(temp)-1) + temp;
+%             temp = conv(kernel3, para.tr(i).spk2(n,f-1));
+%             h2(f:f+length(temp)-1) = h2(f:f+length(temp)-1) + temp;
+%             
+            %independent history terms
             temp = conv(kernel3, para.tr(i).spk1(n,f-1));
-            h1(f:f+length(temp)-1) = h1(f:f+length(temp)-1) + temp;
+            h1(f) = temp(1);
             temp = conv(kernel3, para.tr(i).spk2(n,f-1));
-            h2(f:f+length(temp)-1) = h2(f:f+length(temp)-1) + temp;
+            h2(f) = temp(1);
+            
             
             para.tr(i).spk1(:,f) = poissrnd(exp(s1(f) + c(f) + h1(f)),nneuron,1);
             para.tr(i).spk2(:,f) = poissrnd(exp(s2(f) + c(f) + h2(f)),nneuron,1);
