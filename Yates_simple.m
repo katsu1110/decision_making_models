@@ -7,14 +7,14 @@ function [para] = Yates_simple(varargin)
 
 
 % input arguments
-nneuron = 3;
+nneuron = 10;
 len_tr = 1000;
 tmax = 400;
 tau = 40;
 % tmax = 150;
 % tau = 10;
-kernelgain_s = 0.025;
-kernelgain_c = 0.045;
+kernelgain_s = 0.01;
+kernelgain_c = 0.01;
 plot_flag = 1;
 j = 1;              
 while  j <= length(varargin)
@@ -44,8 +44,8 @@ end
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
 
-% hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
-hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
+hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+% hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
 hdxlab = cell(1, lenhdx);
@@ -106,20 +106,7 @@ end
 %%
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
-stm = nan(len_tr, len_frame);
-stmmat = nan(len_tr, nbin);
-for i = 1:len_tr
-    stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
-%     while abs(sum(stmmat(i,:))) >= 0.1
-%         stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
-%     end
-%  
-    begin = 1;
-    for n = 1:nbin
-        stm(i, begin:begin+frameperbin-1) = stmmat(i,n)*ones(1, frameperbin);
-        begin = begin + frameperbin;
-    end
-end
+[stm, stmmat] = Yates_stm(hdx, len_tr, nbin, frameperbin, 1220);
 
 % overall stimulus sign
 sumstm = sum(stm,2);
@@ -633,6 +620,12 @@ if plot_flag==1
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
+
+function [stm, stmmat] = Yates_stm(hdx, len_tr, nbin, frameperbin, seed)
+rng(seed)
+stmidx = randi(length(hdx),len_tr,nbin);
+stmmat = hdx(stmidx);
+stm = reshape(repmat(stmmat,frameperbin,1),len_tr,nbin*frameperbin);
 
 function [pk0] = getKernel(hdxmat, ch)
 

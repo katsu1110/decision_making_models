@@ -8,7 +8,7 @@ close all;
 
 % input arguments
 nneuron = 10;
-len_tr = 500;
+len_tr = 1000;
 tmax = 400;
 tau = 40;
 kernelgain_s = 0.01;
@@ -42,8 +42,8 @@ end
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
 
-% hdx = 0.2*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
-hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
+hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+% hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
 hdxlab = cell(1, lenhdx);
@@ -74,7 +74,7 @@ para.kernel_co = kernel1;
 % kernel for the history term
 ht = 0:8;
 kernel3 = log(1+ht);
-kernel3 = normalize(kernel3, -0.004, 0);
+kernel3 = normalize(kernel3, -0.005, 0);
 % tau3 = 10;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
@@ -117,17 +117,7 @@ end
 %%
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
-stm = nan(len_tr, len_frame);
-stmmat = nan(len_tr, nbin);
-for i = 1:len_tr
-    stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
-
-    begin = 1;
-    for n = 1:nbin
-        stm(i, begin:begin+frameperbin-1) = stmmat(i,n)*ones(1, frameperbin);
-        begin = begin + frameperbin;
-    end
-end
+[stm, stmmat] = Yates_stm(hdx, len_tr, nbin, frameperbin, 1220);
 
 % overall stimulus sign
 sumstm = sum(stm,2);
@@ -226,11 +216,14 @@ title('nonlinearity')
 c = conv(kernel1, co);    
 h1 = zeros(1,lenv+ht(end));
 h2 = zeros(1,lenv+ht(end));
-for i = 1:len_tr
+for i = 1:len_tr   
+    % convolution with stimulus
     s1 = conv(kernel2, stm(i,:));
     para.tr(i).spk1(:,1) = poissrnd(exp(s1(1) + c(1)), nneuron, 1);
     s2 = conv(-kernel2, stm(i,:));
     para.tr(i).spk2(:,1) = poissrnd(exp(s2(1) + c(1)), nneuron, 1);
+    
+    % with history term
     for f = 2:lenv
         for n = 1:nneuron
 %             for k = 1:nneuron
@@ -318,6 +311,7 @@ para.psth.ch_pref = mean(para.neuron(k).spk1(ch==1, 1:length(time)),1);
 para.psth.ch_null = mean(para.neuron(k).spk1(ch==0, 1:length(time)),1);
 
 %%
+% visualize neural activity
 if plot_flag==1    
         
     figure(1);
@@ -588,6 +582,12 @@ end
 
 %% 
 % subfunctions
+function [stm, stmmat] = Yates_stm(hdx, len_tr, nbin, frameperbin, seed)
+rng(seed)
+stmidx = randi(length(hdx),len_tr,nbin);
+stmmat = hdx(stmidx);
+stm = reshape(repmat(stmmat,frameperbin,1),len_tr,nbin*frameperbin);
+
 function [pk0] = getKernel(hdxmat, ch)
 
 % trial averaged stimulus distributions

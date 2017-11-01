@@ -12,7 +12,8 @@ tau = 40;
 kernelgain_s = 0.03;
 kernelgain_c = 0.05;
 
-hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
+hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+% hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 lenhdx = length(hdx);
 len_frame = 1050;
 nbin = 7;
@@ -37,17 +38,7 @@ time = [1:len_frame+2*offset] - offset;
 %%
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
-stm = nan(len_tr, len_frame);
-stmmat = nan(len_tr, nbin);
-for i = 1:len_tr
-    stmmat(i,:) = datasample(hdx, nbin, 'Replace', true);
-
-    begin = 1;
-    for n = 1:nbin
-        stm(i, begin:begin+frameperbin-1) = stmmat(i,n)*ones(1, frameperbin);
-        begin = begin + frameperbin;
-    end
-end
+[stm, stmmat] = Yates_stm(hdx, len_tr, nbin, frameperbin, 1220);
 
 % overall stimulus sign
 sumstm = sum(stm,2);
@@ -80,8 +71,8 @@ disp('spikes generated')
 
 %%
 % evidence
-dv1 = cumsum(fr1,2);
-dv2 = cumsum(fr2,2);
+dv1 = cumsum(fr1(:, offset+1:offset+len_frame),2);
+dv2 = cumsum(fr2(:, offset+1:offset+len_frame),2);
 ev = dv1(:,end) - dv2(:, end);
 disp('decision variables computed')
 
@@ -263,6 +254,12 @@ set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 %% 
 % subfunction
+function [stm, stmmat] = Yates_stm(hdx, len_tr, nbin, frameperbin, seed)
+rng(seed)
+stmidx = randi(length(hdx),len_tr,nbin);
+stmmat = hdx(stmidx);
+stm = reshape(repmat(stmmat,frameperbin,1),len_tr,nbin*frameperbin);
+
 function [pk0] = getKernel(disval, hdxmat, ch)
 len_d = length(disval);
 svmat = zeros(size(hdxmat,1), len_d);
