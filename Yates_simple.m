@@ -421,6 +421,31 @@ if plot_flag==1
     ylim(yy)    
     ylabel('psth (by choice)')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    % PTA
+    figure(234);
+    col = copper(nbin);
+    PTA = cell(1, nbin);
+    for n = 1:nneuron
+        [PTA1] = PTA_easy(para.neuron(n).spk1, stm, max(hdx),nbin, offset, frameperbin);
+        [PTA2] = PTA_easy(para.neuron(n).spk2, stm, min(hdx),nbin, offset, frameperbin);
+        for b = 1:nbin
+            if n==1
+                PTA{b} = (PTA1{b} + PTA2{b})/2;
+            else
+                PTA{b} = PTA{b} + (PTA1{b} + PTA2{b})/2;
+            end
+        end
+    end
+    for n = 1:nbin
+        plot(1:len_frame, PTA{n}/nneuron,...
+            'color',col(n,:),'linewidth',2)
+        hold on;
+    end
+    xlabel('time')
+    ylabel('PTA')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
 end
 
 %%
@@ -626,6 +651,16 @@ rng(seed)
 stmidx = randi(length(hdx),len_tr,nbin);
 stmmat = hdx(stmidx);
 stm = reshape(repmat(stmmat,frameperbin,1),len_tr,nbin*frameperbin);
+
+function [PTA] = PTA_easy(spk, stm, pref, nbin, offset, frameperbin)
+PTA = cell(1, nbin);
+begin = 1 + offset;
+for n = 1:nbin
+    PTA{n} = mean(spk(stm(:,begin)==pref,1+offset:nbin*frameperbin+offset),1)...
+        - mean(spk(:,1+offset:nbin*frameperbin+offset),1);
+    begin = begin + frameperbin;
+end
+
 
 function [pk0] = getKernel(hdxmat, ch)
 

@@ -17,6 +17,7 @@ kernelgain_s = 0.08;
 kernelgain_c = 0.09;
 
 hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+lenhdx = length(hdx);
 len_frame = 1050;
 nbin = 7;
 
@@ -64,6 +65,27 @@ if plot_flag == 1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
     
     subplot(2,4,3)
+    plot(kernel3, '-k', 'linewidth',2)
+%     xlim([t(1) t(end)])
+    title('history kernel')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    figure(12345);
+    subplot(2,3,1)
+    plot(t, kernel2, '-b', 'linewidth',2)
+    hold on;
+    plot(t, -kernel2, '-r', 'linewidth',2)
+    xlim([t(1) t(end)])
+    title('stimulus kernel')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    subplot(2,3,2)
+    plot(t, kernel1, '-k', 'linewidth',2)
+    xlim([t(1) t(end)])
+    title('contrast kernel')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    subplot(2,3,3)
     plot(kernel3, '-k', 'linewidth',2)
 %     xlim([t(1) t(end)])
     title('history kernel')
@@ -124,22 +146,23 @@ for i = 1:len_tr
         end
     end
     
-%     % debug psth
-%     if i==1
-%         figure(12345);        
-%         imagesc(time, 1:2*nneuron, [para.tr(i).spk1; para.tr(i).spk2])
-%         colormap(gca, flipud(bone))
-%         hold on;
-%         plot(time, (nneuron+0.5)*ones(1, length(time)), '-m')
-%         hold on;
-%         plot(time, (nneuron+0.5)+ 3*nneuron*stm(i,:), '-g', 'linewidth',2)
-%         hold on;
-%         xlim([-offset len_frame+offset])
-%         ylim([0 2*nneuron+1])   
-%         xlabel('time (ms)')
-%         ylabel('neurons')
-%         set(gca, 'TickDir', 'out')
-%     end
+    % debug psth
+    if i==1
+        figure(12345); 
+        subplot(2,3,[4 5 6])
+        imagesc(time, 1:2*nneuron, [para.tr(i).spk1; para.tr(i).spk2])
+        colormap(gca, flipud(bone))
+        hold on;
+        plot(time, (nneuron+0.5)*ones(1, length(time)), '-m')
+        hold on;
+        plot(time, (nneuron+0.5)+ 3*nneuron*stm(i,:), '-g', 'linewidth',2)
+        hold on;
+        xlim([-offset len_frame+offset])
+        ylim([0 2*nneuron+1])   
+        xlabel('time (ms)')
+        ylabel('neurons')
+        set(gca, 'TickDir', 'out')
+    end
 end
 disp('spikes generated')
 
@@ -275,6 +298,30 @@ if plot_flag==1
     ylim(yy)    
     ylabel('psth (by choice)')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    % PTA
+    figure(234);
+    col = copper(nbin);
+    PTA = cell(1, nbin);
+    for n = 1:nneuron
+        [PTA1] = PTA_easy(para.neuron(n).spk1, stm, max(hdx),nbin, offset, frameperbin);
+        [PTA2] = PTA_easy(para.neuron(n).spk2, stm, min(hdx),nbin, offset, frameperbin);
+        for b = 1:nbin
+            if n==1
+                PTA{b} = (PTA1{b} + PTA2{b})/2;
+            else
+                PTA{b} = PTA{b} + (PTA1{b} + PTA2{b})/2;
+            end
+        end
+    end
+    for n = 1:nbin
+        plot(1:len_frame, PTA{n}/nneuron,...
+            'color',col(n,:),'linewidth',2)
+        hold on;
+    end
+    xlabel('time')
+    ylabel('PTA')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
 
 %%
@@ -340,6 +387,10 @@ wn = mean([wh, wl]);
 
 %%
 if plot_flag==1
+    % yellow and green
+    y = [0.9576    0.7285    0.2285];
+    g = [0.1059    0.4706    0.2157];
+
     figure(1);
     % visualize kernels
 %     subplot(2,4,4)
@@ -412,6 +463,15 @@ stmidx = randi(length(hdx),len_tr,nbin);
 stmmat = hdx(stmidx);
 stm = reshape(repmat(stmmat,frameperbin,1),len_tr,nbin*frameperbin);
 
+
+function [PTA] = PTA_easy(spk, stm, pref, nbin, offset, frameperbin)
+PTA = cell(1, nbin);
+begin = 1 + offset;
+for n = 1:nbin
+    PTA{n} = mean(spk(stm(:,begin)==pref,1+offset:nbin*frameperbin+offset),1)...
+        - mean(spk(:,1+offset:nbin*frameperbin+offset),1);
+    begin = begin + frameperbin;
+end
 
 function [pk0] = getKernel(hdxmat, ch)
 

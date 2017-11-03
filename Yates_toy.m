@@ -1,55 +1,24 @@
-function [para] = Yates_history(varargin)
-%% Yates model ("stimulus-to-MT model") with history term
+function [para] = Yates_toy(varargin)
+%% Yates toy model ("stimulus-to-MT model") without history term
+% The similar one in the supplementary at Yates et al., 2017
 %
-% written by Katsuhisa (30.10.17)
+% written by Katsuhisa (02.11.17)
 % ++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 close all;
 
 % input arguments
-nneuron = 10;
-len_tr = 1000;
-tmax = 400;
-tau = 40;
-kernelgain_s = 0.05;
-kernelgain_c = 0.05;
 plot_flag = 1;
-j = 1;              
-while  j <= length(varargin)
-    switch varargin{j}
-        case 'ntr'
-            len_tr = varargin{j+1};
-            j = j + 2;
-        case 'tmax' 
-            tmax = varargin{j+1};
-            j = j + 2;
-        case 'tau'
-            tau = varargin{j+1};
-            j = j + 2;
-        case 'kernelgain_s'
-            kernelgain_s = varargin{j+1};            
-             j = j + 2;
-        case 'kernelgain_c'
-            kernelgain_c = varargin{j+1};            
-             j = j + 2;
-        case 'nofig'
-            plot_flag = 0;
-            j = j + 1;
-    end
-end
-
-% yellow and green
-y = [0.9576    0.7285    0.2285];
-g = [0.1059    0.4706    0.2157];
+nneuron = 10;
+len_tr = 100;
+tmax = 150;
+tau = 10;
+kernelgain_s = 0.08;
+kernelgain_c = 0.09;
 
 hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
-% hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
-len_frame = 1050;
 lenhdx = length(hdx);
-hdxlab = cell(1, lenhdx);
-for i = 1:lenhdx
-    hdxlab{i} = num2str(hdx(i));
-end
+len_frame = 1050;
 nbin = 7;
 
 % contrast
@@ -60,9 +29,6 @@ co = 1*[zeros(1,offset),ones(1,len_frame),zeros(1,offset)];
 % alpha function as a stimulus kernel
 t = 0:tmax;
 kernel1 = exp(-t/tau).*(1 - exp(-t/tau));
-hn_offset = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
-kernel1 = kernel1 - 1.5*hn_offset;
-kernel1(1:4) = 0;
 kernel2 = kernel1;
 kernel1 = kernelgain_c*kernel1/max(kernel1) ;
 kernel2 = kernelgain_s*kernel2/max(kernel2);
@@ -70,27 +36,6 @@ kernel2 = kernelgain_s*kernel2/max(kernel2);
 para.kernel_stm = kernel2;
 para.kernel_co = kernel1;
 
-%%
-% kernel for the history term
-ht = 0:10;
-kernel3 = log(1+ht);
-kernel3 = normalize(kernel3, -0.035, 0);
-% tau3 = 10;
-% kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
-% hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
-% kernel3 = kernel3 - 3*hn_offset;
-% kernel3(1:2) = 0;
-% kernel3 = -kernel3;
-% v = zeros(1, 2*nneuron);
-% for i = 1:2*nneuron
-%     v(i) = 0.01/(i^2);
-% end
-% toeplitzm = toeplitz(v);
-% para.toeplitzm = toeplitzm;
-
-%%
-time = [1:len_frame+2*offset] - offset;
-    
 if plot_flag == 1
     figure(1);
     subplot(2,4,1)
@@ -107,17 +52,26 @@ if plot_flag == 1
     title('contrast kernel')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
     
-    subplot(2,4,3)
-    plot(kernel3, '-k', 'linewidth',2)
-%     xlim([t(1) t(end)])
-    title('history kernel')
+    figure(12345);
+    subplot(2,3,1)
+    plot(t, kernel2, '-b', 'linewidth',2)
+    hold on;
+    plot(t, -kernel2, '-r', 'linewidth',2)
+    xlim([t(1) t(end)])
+    title('stimulus kernel')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    subplot(2,3,2)
+    plot(t, kernel1, '-k', 'linewidth',2)
+    xlim([t(1) t(end)])
+    title('contrast kernel')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
 end
-
 %%
 % generate dynamic stimulus sequence with the 0% signal
 frameperbin = len_frame/nbin;
-[stm, stmmat] = Yates_stm(hdx, len_tr, nbin, frameperbin, 1220);
+[stm] = Yates_stm(hdx, len_tr, nbin, frameperbin, 1220);
 
 % overall stimulus sign
 sumstm = sum(stm,2);
@@ -129,122 +83,20 @@ stmsign_n2 = stmsign < 0 & sumstm < med_n;
 
 disp('stimulus generated')
 
-%%
-% debug stimulus
-figure(123);
-col = jet(nbin);
-for n = 1:nbin
-    subplot(1,2,1)
-    c = histc(stmmat(stmsign_p2,n),unique(stmmat(stmsign_p2,n)));
-    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
-    hold on;
-    
-    subplot(1,2,2)
-    c = histc(stmmat(stmsign_n2,n),unique(stmmat(stmsign_n2,n)));
-    plot(1:lenhdx, c, ':o', 'color', col(n,:), 'markerfacecolor', col(n,:))
-    hold on;
-end
-subplot(1,2,1)
-legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
-legend('boxoff')
-title('pref stm')
-xlabel('hdx')
-set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
-ylabel('counts (50000 trials)')
-set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-
-subplot(1,2,2)
-legend('1st','2nd','3rd','4th','5th','6th','7th','location','eastoutside')
-legend('boxoff')
-title('null stm')
-xlabel('hdx')
-set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
-set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-
-
 % include offset
 stm = [zeros(len_tr, offset), stm, zeros(len_tr, offset)];
 
 %%
-% for debugging
-lenv = size(stm,2);
-figure(2);
-subplot(2,5,1)
-plot(kernel1);
-title('contrast')
-
-subplot(2,5,2)
-plot(kernel2,'-b')
-hold on;
-plot(-kernel2, '-r')
-title('stimulus')
-
-subplot(2,5,3)
-plot(kernel3)
-title('history')
-
-subplot(2,5,6)
-c = conv(kernel1, co);
-plot(c(1:lenv));
-hold on;
-plot(co)
-
-subplot(2,5,7)
-s = conv(kernel2, stm(1,:));
-plot(s(1:lenv))
-hold on;
-plot(stm(2,:))
-
-subplot(2,5,8)
-onehot = zeros(1, lenv);
-onehot(offset+5) = 1;
-h = conv(kernel3, onehot);
-plot(h(1:lenv))
-hold on;
-plot(onehot)
-
-subplot(2,5,9)
-plot(c(1:lenv) + s(1:lenv) + h(1:lenv))
-title('sum of all')
-
-subplot(2,5,10)
-plot(exp(c(1:lenv) + s(1:lenv) + h(1:lenv)))
-title('nonlinearity')
-
-%%
 % sensory neurons' responses
+lenv = len_frame + 2*offset;
+time = [1:lenv] - offset;
 c = conv(kernel1, co);    
-for i = 1:len_tr   
-    % initialization
-    para.tr(i).spk1 = zeros(nneuron, lenv);
-    para.tr(i).spk2 = zeros(nneuron, lenv);
-    
+for i = 1:len_tr       
     % convolution with stimulus
     s1 = conv(kernel2, stm(i,:));
-    para.tr(i).spk1(:,1) = poissrnd(exp(s1(1) + c(1)), nneuron, 1);
+    para.tr(i).spk1 = arrayfun(@(x) poissrnd(x), repmat(exp(s1(1:lenv) + c(1:lenv)),nneuron,1));
     s2 = conv(-kernel2, stm(i,:));
-    para.tr(i).spk2(:,1) = poissrnd(exp(s2(1) + c(1)), nneuron, 1);
-    
-    % with history term
-    for f = 2:lenv
-        for n = 1:nneuron
-            % cumulative history terms
-            h1 = fliplr(conv(kernel3, para.tr(i).spk1(n,f-1)));
-            h2 = fliplr(conv(kernel3, para.tr(i).spk2(n,f-1)));
-            if f > ht(end)+1
-                withspk1 = para.tr(i).spk1(n,f-1-ht(end):f-1)>0;
-                withspk2 = para.tr(i).spk2(n,f-1-ht(end):f-1)>0;
-            else
-                withspk1 = zeros(1, ht(end)+1);
-                withspk2 = zeros(1, ht(end)+1);
-                withspk1(end-f+2:end) = para.tr(i).spk1(n,1:f-1)>0;
-                withspk2(end-f+2:end) = para.tr(i).spk2(n,1:f-1)>0;
-            end
-                                 
-            para.tr(i).spk1(:,f) = poissrnd(exp(s1(f) + c(f) + sum(h1(withspk1==1))),nneuron,1);
-            para.tr(i).spk2(:,f) = poissrnd(exp(s2(f) + c(f) + sum(h2(withspk2==1))),nneuron,1);
-        end
-    end
+    para.tr(i).spk2 = arrayfun(@(x) poissrnd(x), repmat(exp(s2(1:lenv) + c(1:lenv)),nneuron,1));
     
     % debug psth
     if i==1
@@ -265,11 +117,6 @@ for i = 1:len_tr
     end
 end
 disp('spikes generated')
-% % noise
-% cvstm1(:, offset+1:offset+len_frame) = ...
-%     cvstm1(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
-% cvstm2(:, offset+1:offset+len_frame) = ...
-%     cvstm2(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
 
 % reshape struct
 for n = 1:nneuron
@@ -427,6 +274,7 @@ if plot_flag==1
     xlabel('time')
     ylabel('PTA')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
 end
 
 %%
@@ -445,29 +293,6 @@ plot(med*[1 1], yy, '-r')
 xlabel('confidence')
 
 disp(['median confidence: ' num2str(med)])
-
-% if plot_flag==1
-%     subplot(2,4,5)
-%     plot(1:size(dv1,2), mean(abs(dv1(ch==1,:)), 1), '-r', 'linewidth', 2)
-%     hold on;
-%     plot(1:size(dv1,2), mean(abs(dv1(conf > med & ch==1, :)), 1), '-', 'color', y, 'linewidth', 2)
-%     hold on;
-%     plot(1:size(dv1,2), mean(abs(dv1(conf < med & ch==1, :)), 1), '-', 'color', g, 'linewidth', 2)
-%     hold on;
-%     plot(1:size(dv2,2), mean(abs(dv2(ch==0,:)), 1), '--r', 'linewidth', 2)
-%     hold on;
-%     plot(1:size(dv2,2), mean(abs(dv2(conf > med & ch==0, :)), 1), '--', 'color', y, 'linewidth', 2)
-%     hold on;
-%     plot(1:size(dv2,2), mean(abs(dv2(conf < med & ch==0, :)), 1), '--', 'color', g, 'linewidth', 2)
-%     ylabel('mean |decision variable|')
-%     xlim([0 size(dv1, 2)+1])
-%     xlabel('time during stimulus presentation')
-% end
-
-% % time-averaged kernel
-% pk0 = getKernel(stm(:, offset+1:offset+len_frame), ch);
-% pkh = getKernel(stm(conf > med, offset+1:offset+len_frame), ch(conf > med));
-% pkl = getKernel(stm(conf < med, offset+1:offset+len_frame), ch(conf < med));
 
 %%
 % time-resolved kernel
@@ -515,6 +340,10 @@ wn = mean([wh, wl]);
 
 %%
 if plot_flag==1
+    % yellow and green
+    y = [0.9576    0.7285    0.2285];
+    g = [0.1059    0.4706    0.2157];
+
     figure(1);
     % visualize kernels
 %     subplot(2,4,4)
@@ -543,45 +372,6 @@ if plot_flag==1
     xlim([0.5 nbin + 0.5])
     ylabel('kernel amplitude')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-
-    % cosmetics
-%     subplot(2,4,1)
-%     ylabel('hdx')
-%     xlabel('time (ms)')
-%     xlim([-offset offset+len_frame])
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-% 
-%     subplot(2,4,2)
-%     xlim([-offset offset+len_frame])
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-
-%     subplot(2,4,3)
-%     subplot(2,3,[1 2])
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-%     legend('location','eastoutside')
-
-%     subplot(2,4,4)
-%     set(gca, 'XTick', 1:nbin)
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-
-%     subplot(2,4,5)
-%     % xlim([-offset offset+len_frame])
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-% 
-% %     subplot(2,4,6)
-%     subplot(2,3,4)
-%     xlim([-offset offset+len_frame])
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-% 
-% %     subplot(2,4,7)
-%     subplot(2,3,5)
-%     xlim([-offset offset+len_frame])
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-% 
-% %     subplot(2,4,8)
-%     subplot(2,3,6)
-%     set(gca, 'XTick', 1:nbin)
-%     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
     % additional figures for paper
     figure(10);
@@ -627,15 +417,6 @@ stmmat = hdx(stmidx);
 stm = reshape(repmat(stmmat,frameperbin,1),len_tr,nbin*frameperbin);
 
 
-function [PTA] = PTA_easy(spk, stm, pref, nbin, offset, frameperbin)
-PTA = cell(1, nbin);
-begin = 1 + offset;
-for n = 1:nbin
-    PTA{n} = mean(spk(stm(:,begin)==pref,1+offset:nbin*frameperbin+offset),1)...
-        - mean(spk(:,1+offset:nbin*frameperbin+offset),1);
-    begin = begin + frameperbin;
-end
-
 function [pk0] = getKernel(hdxmat, ch)
 
 % trial averaged stimulus distributions
@@ -650,6 +431,16 @@ end
 
 % compute PK for 0% stimulus
 pk0 = mean(svmat(ch==0,:),1) - mean(svmat(ch==1,:),1);
+
+function [PTA] = PTA_easy(spk, stm, pref, nbin, offset, frameperbin)
+PTA = cell(1, nbin);
+begin = 1 + offset;
+for n = 1:nbin
+    PTA{n} = mean(spk(stm(:,begin)==pref,1+offset:nbin*frameperbin+offset),1)...
+        - mean(spk(:,1+offset:nbin*frameperbin+offset),1);
+    begin = begin + frameperbin;
+end
+
 
 function w = logregPK(hdxmat, ch)
 w = size(hdxmat, 2);
