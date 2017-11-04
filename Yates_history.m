@@ -74,7 +74,7 @@ para.kernel_co = kernel1;
 % kernel for the history term
 ht = 0:10;
 kernel3 = log(1+ht);
-kernel3 = normalize(kernel3, -0.035, 0);
+kernel3 = normalize(kernel3, -0.02, 0);
 % tau3 = 10;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
