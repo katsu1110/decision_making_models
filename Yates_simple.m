@@ -8,13 +8,15 @@ function [para] = Yates_simple(varargin)
 
 % input arguments
 nneuron = 10;
-len_tr = 1000;
-tmax = 400;
+len_tr = 600;
+tmax = 600;
 tau = 40;
 % tmax = 150;
 % tau = 10;
-kernelgain_s = 0.05;
-kernelgain_c = 0.05;
+kernelgain_s = 0.015;
+kernelgain_c = 0.016;
+offset_gain = 0.6;
+stm_gain = 0.6;
 plot_flag = 1;
 j = 1;              
 while  j <= length(varargin)
@@ -34,6 +36,12 @@ while  j <= length(varargin)
         case 'kernelgain_c'
             kernelgain_c = varargin{j+1};            
              j = j + 2;
+        case 'offset_gain'
+            offset_gain = varargin{j+1};            
+             j = j + 2;
+        case 'stm_gain'
+            stm_gain = varargin{j+1};            
+             j = j + 2;
         case 'nofig'
             plot_flag = 0;
             j = j + 1;
@@ -44,7 +52,7 @@ end
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
 
-hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
@@ -62,12 +70,14 @@ co = 1*[zeros(1,offset),ones(1,len_frame),zeros(1,offset)];
 % alpha function as a stimulus kernel
 t = 0:tmax;
 kernel1 = exp(-t/tau).*(1 - exp(-t/tau));
-hn_offset = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
-kernel1 = kernel1 - 1.5*hn_offset;
-kernel1(1:4) = 0;
-kernel2 = kernel1;
-kernel1 = kernelgain_c*kernel1/max(kernel1) ;
-kernel2 = kernelgain_s*kernel2/max(kernel2);
+hn_offset_s = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
+hn_offset_c = [ones(1,length(t))*0.025]; % manually tweaked to approximate that in Yates for contrast kernel
+kernel2 = kernel1 - offset_gain*hn_offset_s; % initially offset_gain was fixed at 1.5
+kernel2(1:4) = 0;
+kernel1 = kernel1-offset_gain*hn_offset_c;
+kernel1(1:4)=0;
+kernel1 = kernelgain_c*kernel1/max(kernel1) ; % contrast kernel
+kernel2 = kernelgain_s*kernel2/max(kernel2);  % stimulus kernel
 lenhdx = length(hdx);
     
 para.kernel_stm = kernel2;
@@ -180,8 +190,8 @@ for i = 1:len_tr
     para.tr(i).spk2 = nan(nneuron, lenv);
     s1 = conv(kernel2, stm(i,:));
     s2 = conv(-kernel2, stm(i,:));
-    para.tr(i).fr1 = exp(s1(1:lenv)+c(1:lenv))/10;
-    para.tr(i).fr2 = exp(s2(1:lenv)+c(1:lenv))/10;
+    para.tr(i).fr1 = exp(s1(1:lenv)+c(1:lenv));
+    para.tr(i).fr2 = exp(s2(1:lenv)+c(1:lenv));
     for n = 1:nneuron
         para.tr(i).spk1(n,:) = arrayfun(@(x) poissrnd(x), para.tr(i).fr1);    
         para.tr(i).spk2(n,:) = arrayfun(@(x) poissrnd(x), para.tr(i).fr2);

@@ -8,11 +8,13 @@ close all;
 
 % input arguments
 nneuron = 10;
-len_tr = 1000;
-tmax = 400;
+len_tr = 600;
+tmax = 600;
 tau = 40;
-kernelgain_s = 0.05;
-kernelgain_c = 0.05;
+kernelgain_s = 0.015;
+kernelgain_c = 0.016;
+offset_gain = 0.6;
+stm_gain = 0.6;
 plot_flag = 1;
 j = 1;              
 while  j <= length(varargin)
@@ -32,6 +34,12 @@ while  j <= length(varargin)
         case 'kernelgain_c'
             kernelgain_c = varargin{j+1};            
              j = j + 2;
+        case 'offset_gain'
+            offset_gain = varargin{j+1};            
+             j = j + 2;
+        case 'stm_gain'
+            stm_gain = varargin{j+1};            
+             j = j + 2;
         case 'nofig'
             plot_flag = 0;
             j = j + 1;
@@ -42,7 +50,7 @@ end
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
 
-hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 len_frame = 1050;
 lenhdx = length(hdx);
@@ -60,12 +68,14 @@ co = 1*[zeros(1,offset),ones(1,len_frame),zeros(1,offset)];
 % alpha function as a stimulus kernel
 t = 0:tmax;
 kernel1 = exp(-t/tau).*(1 - exp(-t/tau));
-hn_offset = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
-kernel1 = kernel1 - 1.5*hn_offset;
+hn_offset_s = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
+hn_offset_c = [ones(1,length(t))*0.025]; % manually tweaked to approximate that in Yates for contrast kernel
+kernel2 = kernel1 - offset_gain*hn_offset_s; % initially offset_gain was fixed at 1.5
+kernel2(1:4) = 0;
+kernel1 = kernel1-offset_gain*hn_offset_c;
 kernel1(1:4) = 0;
-kernel2 = kernel1;
-kernel1 = kernelgain_c*kernel1/max(kernel1) ;
-kernel2 = kernelgain_s*kernel2/max(kernel2);
+kernel1 = kernelgain_c*kernel1/max(kernel1) ; % contrast kernel
+kernel2 = kernelgain_s*kernel2/max(kernel2);  % stimulus kernel
     
 para.kernel_stm = kernel2;
 para.kernel_co = kernel1;
@@ -74,7 +84,7 @@ para.kernel_co = kernel1;
 % kernel for the history term
 ht = 0:10;
 kernel3 = log(1+ht);
-kernel3 = normalize(kernel3, -0.02, 0);
+kernel3 = normalize(kernel3, -0.01, 0);
 % tau3 = 10;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates

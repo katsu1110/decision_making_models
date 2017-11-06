@@ -1,4 +1,4 @@
-function Yates_simple_example
+function [para] = Yates_simple_example(varargin)
 %% "stimulus-to-SensoryNeuron model' as presented in
 %% Yates et al., 2017
 %
@@ -7,12 +7,42 @@ function Yates_simple_example
 
 % input arguments
 len_tr = 5000;
-tmax = 400;
+tmax = 600;
 tau = 40;
-kernelgain_s = 0.03;
-kernelgain_c = 0.05;
-
-hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
+kernelgain_s = 0.015;
+kernelgain_c = 0.016;
+offset_gain = 0.6;
+stm_gain = 0.6;
+j = 1;              
+while  j <= length(varargin)
+    switch varargin{j}
+        case 'ntr'
+            len_tr = varargin{j+1};
+            j = j + 2;
+        case 'tmax' 
+            tmax = varargin{j+1};
+            j = j + 2;
+        case 'tau'
+            tau = varargin{j+1};
+            j = j + 2;
+        case 'kernelgain_s'
+            kernelgain_s = varargin{j+1};            
+             j = j + 2;
+        case 'kernelgain_c'
+            kernelgain_c = varargin{j+1};            
+             j = j + 2;
+        case 'offset_gain'
+            offset_gain = varargin{j+1};            
+             j = j + 2;
+        case 'stm_gain'
+            stm_gain = varargin{j+1};            
+             j = j + 2;
+        case 'nofig'
+            plot_flag = 0;
+            j = j + 1;
+    end
+end
+hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 lenhdx = length(hdx);
 len_frame = 1050;
@@ -26,13 +56,15 @@ co = 1*[zeros(1,offset),ones(1,len_frame),zeros(1,offset)];
 % alpha function as a stimulus kernel
 t = 0:tmax;
 kernel1 = exp(-t/tau).*(1 - exp(-t/tau));
-hn_offset = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
-kernel1 = kernel1 - 1.5*hn_offset;
+hn_offset_s = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
+hn_offset_c = [ones(1,length(t))*0.025]; % manually tweaked to approximate that in Yates for contrast kernel
+kernel2 = kernel1 - offset_gain*hn_offset_s; % initially offset_gain was fixed at 1.5
+kernel2(1:4) = 0;
+kernel1 = kernel1-offset_gain*hn_offset_c;
 kernel1(1:4) = 0;
-kernel2 = kernel1;
-kernel1 = kernelgain_c*kernel1/max(kernel1) ;
-kernel2 = kernelgain_s*kernel2/max(kernel2);
-
+kernel1 = kernelgain_c*kernel1/max(kernel1) ; % contrast kernel
+kernel2 = kernelgain_s*kernel2/max(kernel2);  % stimulus kernel
+    
 time = [1:len_frame+2*offset] - offset;    
 
 %%
@@ -114,143 +146,158 @@ for a = 1:nbin
 end
 disp('PK computed')
 
+
 %% 
-close all;
+if plot_flag==1
+    close all;
 
-% debug stimulus statistics
-figure;
-subplot(2,3,1)
-histogram(sumstm)
-xlabel('actual signal strength')
-ylabel('trials')
+    % debug stimulus statistics
+    figure;
+    subplot(2,3,1)
+    histogram(sumstm)
+    xlabel('actual signal strength')
+    ylabel('trials')
 
-subplot(2,3,4)
-plot(1:lenv, mean(stm,1))
-hold on;
-plot(1:lenv, median(stm,1))
-xlim([1 lenv])
-xlabel('time during stimulus presentation')
-ylabel('signal')
-legend('mean', 'median')
-legend('boxoff')
-
-hdxlab = cell(1, lenhdx);
-for i = 1:lenhdx
-    hdxlab{i} = num2str(hdx(i));
-end
-p = [2 3 5 6];
-for l = 1:4
-    switch l
-        case 1
-            idx = stmsign_p2;
-            tlab = 'pref stm';
-        case 2
-            idx = stmsign_n2;
-            tlab = 'null stm';
-        case 3
-            idx = ch==1;
-            tlab = 'ch 1';
-        case 4
-            idx = ch==0;
-            tlab = 'ch 0';
-    end
-    c = zeros(nbin, lenhdx);
-    for n = 1:nbin
-        for m = 1:lenhdx
-            c(n,m) = sum(stmmat(idx,n)==hdx(m));
-        end
-    end
-    subplot(2,3,p(l))
-    imagesc(1:lenhdx, 1:nbin, c)
-    colorbar
-    xlabel('hdx')
-    ylabel('pulse')
-    title(tlab)
-    set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
-    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-end
-
-%%
-% debug psth
-figure;
-for l = 1:2
-    switch l
-        case 1
-            idx1 = stmsign_p2;
-            idx2 = stmsign_n2;
-            tlab1 = 'pref stm';
-            tlab2 = 'null stm';
-        case 2
-            idx1 = ch==1;
-            idx2 = ch==0;
-            tlab1 = 'pref ch';
-            tlab2 = 'null ch';
-    end
-    subplot(1,2,l)
-    plot(time, mean(fr1(idx1,:)), '-b', 'linewidth',1)
+    subplot(2,3,4)
+    plot(1:lenv, mean(stm,1))
     hold on;
-    plot(time, mean(fr1(idx2,:)), '-r', 'linewidth',1)
-    hold on;
-    yy = get(gca, 'YLim');
-    begin = 1;
-    for i = 1:nbin+1
-        hold on;
-        plot(begin*[1 1],yy, ':k')
-        begin = begin + frameperbin;
-    end
-    xlim([-offset len_frame+offset])
-    ylim(yy)    
-    ylabel('psth')
-    legend(tlab1, tlab2)
+    plot(1:lenv, median(stm,1))
+    xlim([1 lenv])
+    xlabel('time during stimulus presentation')
+    ylabel('signal')
+    legend('mean', 'median')
     legend('boxoff')
+
+    hdxlab = cell(1, lenhdx);
+    for i = 1:lenhdx
+        hdxlab{i} = num2str(hdx(i));
+    end
+    p = [2 3 5 6];
+    for l = 1:4
+        switch l
+            case 1
+                idx = stmsign_p2;
+                tlab = 'pref stm';
+            case 2
+                idx = stmsign_n2;
+                tlab = 'null stm';
+            case 3
+                idx = ch==1;
+                tlab = 'ch 1';
+            case 4
+                idx = ch==0;
+                tlab = 'ch 0';
+        end
+        c = zeros(nbin, lenhdx);
+        for n = 1:nbin
+            for m = 1:lenhdx
+                c(n,m) = sum(stmmat(idx,n)==hdx(m));
+            end
+        end
+        subplot(2,3,p(l))
+        imagesc(1:lenhdx, 1:nbin, c)
+        colorbar
+        xlabel('hdx')
+        ylabel('pulse')
+        title(tlab)
+        set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
+        set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    end
+
+    %%
+    % debug psth
+    figure;
+    for l = 1:2
+        switch l
+            case 1
+                idx1 = stmsign_p2;
+                idx2 = stmsign_n2;
+                tlab1 = 'pref stm';
+                tlab2 = 'null stm';
+            case 2
+                idx1 = ch==1;
+                idx2 = ch==0;
+                tlab1 = 'pref ch';
+                tlab2 = 'null ch';
+        end
+        subplot(1,2,l)
+        plot(time, mean(fr1(idx1,:)), '-b', 'linewidth',1)
+        hold on;
+        plot(time, mean(fr1(idx2,:)), '-r', 'linewidth',1)
+        hold on;
+        yy = get(gca, 'YLim');
+        begin = 1;
+        for i = 1:nbin+1
+            hold on;
+            plot(begin*[1 1],yy, ':k')
+            begin = begin + frameperbin;
+        end
+        xlim([-offset len_frame+offset])
+        ylim(yy)    
+        ylabel('psth')
+        legend(tlab1, tlab2)
+        legend('boxoff')
+        set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    end
+
+    %%
+    % debug PK
+    % yellow and green
+    y = [0.9576    0.7285    0.2285];
+    g = [0.1059    0.4706    0.2157];
+    figure;
+    subplot(1,4,1)
+    imagesc(1:nbin, hdx, tkernel)
+    c0 = caxis;
+    xlabel('time bin')
+    ylabel('hdx')
+    title('overall')
+
+    subplot(1,4,2)
+    imagesc(1:nbin, hdx, tkernel_h)
+    c1 = caxis;
+    xlabel('time bin')
+    ylabel('hdx')
+    title('high conf.')
+
+    subplot(1,4,3)
+    imagesc(1:nbin, hdx, tkernel_l)
+    c2 = caxis;
+    xlabel('time bin')
+    ylabel('hdx')
+    title('low conf.')
+
+    c = [min([c0 c1 c2]) max([c0 c1 c2])];
+    subplot(1,4,1)
+    caxis(c)
+    subplot(1,4,2)
+    caxis(c)
+    subplot(1,4,3)
+    caxis(c)
+
+    subplot(1,4,4)
+    nom = mean([amph, ampl]);
+    plot(1:nbin, amp/nom, '-r', 'linewidth', 2)
+    hold on;
+    plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
+    hold on;
+    plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
+    xlim([0.5 nbin + 0.5])
+    ylabel('kernel amplitude')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
 
-%%
-% debug PK
-% yellow and green
-y = [0.9576    0.7285    0.2285];
-g = [0.1059    0.4706    0.2157];
-figure;
-subplot(1,4,1)
-imagesc(1:nbin, hdx, tkernel)
-c0 = caxis;
-xlabel('time bin')
-ylabel('hdx')
-title('overall')
-
-subplot(1,4,2)
-imagesc(1:nbin, hdx, tkernel_h)
-c1 = caxis;
-xlabel('time bin')
-ylabel('hdx')
-title('high conf.')
-
-subplot(1,4,3)
-imagesc(1:nbin, hdx, tkernel_l)
-c2 = caxis;
-xlabel('time bin')
-ylabel('hdx')
-title('low conf.')
-
-c = [min([c0 c1 c2]) max([c0 c1 c2])];
-subplot(1,4,1)
-caxis(c)
-subplot(1,4,2)
-caxis(c)
-subplot(1,4,3)
-caxis(c)
-
-subplot(1,4,4)
-nom = mean([amph, ampl]);
-plot(1:nbin, amp/nom, '-r', 'linewidth', 2)
-hold on;
-plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
-hold on;
-plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
-xlim([0.5 nbin + 0.5])
-ylabel('kernel amplitude')
-set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+%% 
+% store variables
+para.kernel_stm = kernel2;
+para.kernel_co = kernel1;
+para.psth.stm_null = mean(fr1(stmsign_n2, 1:length(time)),1);
+para.psth.stm_pref = mean(fr1(stmsign_p2, 1:length(time)),1);
+para.psth.ch_pref = mean(fr1(ch==1, 1:length(time)),1);
+para.psth.ch_null = mean(fr1(ch==0, 1:length(time)),1);
+para.amp = amp;
+para.amp_h = amph;
+para.amp_l = ampl;
 
 %% 
 % subfunction

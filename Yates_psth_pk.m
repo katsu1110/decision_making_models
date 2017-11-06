@@ -2,10 +2,11 @@ function Yates_psth_pk
 
 % parameters for "grid search"
 ntr = 1000;
-tmax = 400;
+tmax = 600;
 tau = 40;
-kernel_stm =  [0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08, 0.09];
-kernel_co = [0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08, 0.09];
+kernel_stm =  [0.012,0.013,0.014,0.015,0.016,0.017,0.018];
+kernel_co = [0.012,0.013,0.014,0.015,0.016,0.017,0.018];
+offset_gain = [0.6, 0.7];
 offset = 100;
 len_frame = 1050;
 nbin = 7;
@@ -28,13 +29,15 @@ for k = 1:2
 %         try
             if k==1
                 coker = kernel_co(i);
-                stker = 0.05;
+                stker = 0.015;
             else
-                coker = 0.05;
+                coker = 0.015;
                 stker = kernel_stm(i);
             end
 
-            yout = Yates_simple('ntr',ntr,'tmax',tmax,'tau',tau,'kernelgain_c',coker,'kernelgain_s',stker,'nofig');
+            yout = Yates_simple_example('ntr',ntr,'tmax',tmax,'tau',tau,...
+                'kernelgain_c',coker,'kernelgain_s',stker,...
+                'offset_gain',offset_gain(1),'stm_gain',offset_gain(1),'nofig');
             disp(['tmax: ',num2str(tmax),', tau: ',num2str(tau),...
             ', kernel_stm: ',num2str(stker),', kernel_co: ',num2str(coker)])
         
@@ -160,9 +163,9 @@ for k = 1:2
     
     switch k
         case 1
-            figname = 'contrast kernel: variable, stimlus kernel: 0.05';
+            figname = 'contrast kernel: variable, stimlus kernel: 0.015';
         case 2
-            figname = 'contrast kernel: 0.05, stimulus kernel: variable';
+            figname = 'contrast kernel: 0.015, stimulus kernel: variable';
     end
     set(gcf, 'Name', figname, 'NumberTitle', 'off')
 end
