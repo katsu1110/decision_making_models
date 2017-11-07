@@ -7,17 +7,18 @@ function [para] = Yates_simple(varargin)
 
 
 % input arguments
-nneuron = 10;
-len_tr = 600;
-tmax = 600;
+nneuron = 100;
+len_tr = 1000;
+tmax = 400;
 tau = 40;
 % tmax = 150;
 % tau = 10;
-kernelgain_s = 0.015;
-kernelgain_c = 0.016;
-offset_gain = 0.6;
-stm_gain = 0.6;
+kernelgain_s = 0.05;
+kernelgain_c = 0.05;
+offset_gain = 0.15;
+stm_gain = 0.3;
 plot_flag = 1;
+resample_flag = 1;
 j = 1;              
 while  j <= length(varargin)
     switch varargin{j}
@@ -42,6 +43,9 @@ while  j <= length(varargin)
         case 'stm_gain'
             stm_gain = varargin{j+1};            
              j = j + 2;
+        case 'resample'
+            resample_flag = 1;
+            j = j + 1;
         case 'nofig'
             plot_flag = 0;
             j = j + 1;
@@ -646,6 +650,15 @@ if plot_flag==1
     disp(cfix)
 
     subplot(1,3,3)
+    if resample_flag==1
+        repeat = 500;
+        [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, repeat);
+        [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, repeat);
+        fill_between(1:nbin, (amph-errh)/nom, (amph+errh)/nom, y)
+        hold on;
+        fill_between(1:nbin, (ampl-errl)/nom, (ampl+errl)/nom, g)
+        hold on;
+    end 
     nom = mean([amph, ampl]);
     plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
     hold on;
@@ -701,3 +714,19 @@ a = (newmax - newmin)/(max(max(v)) - min(min(v)));
 b = newmax - max(max(v))*a;
 
 normalized_vector = a.*v + b;
+
+function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, repeat)
+ampr = zeros(repeat, nbin);
+for r = 1:repeat
+    rtr = datasample(1:size(hdxmat,1),size(hdxmat,1));
+    begin = offset+1;
+    tkernel = nan(length(disval), nbin);
+    for a = 1:nbin
+        [tkernel(:,a)] = getKernel(hdxmat(rtr, begin:begin+frameperbin-1), ch(rtr));   
+        begin = begin + frameperbin;
+    end
+    for a = 1:nbin
+        ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
+    end
+end
+err = std(ampr,[],1);

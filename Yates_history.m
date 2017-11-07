@@ -8,14 +8,15 @@ close all;
 
 % input arguments
 nneuron = 10;
-len_tr = 600;
-tmax = 600;
-tau = 40;
-kernelgain_s = 0.015;
-kernelgain_c = 0.016;
-offset_gain = 0.6;
-stm_gain = 0.6;
+len_tr = 1000;
+tmax = 400;
+tau = 30;
+kernelgain_s = 0.05;
+kernelgain_c = 0.05;
+offset_gain = 0.9;
+stm_gain = 0.3;
 plot_flag = 1;
+resample_flag = 0;
 j = 1;              
 while  j <= length(varargin)
     switch varargin{j}
@@ -40,6 +41,9 @@ while  j <= length(varargin)
         case 'stm_gain'
             stm_gain = varargin{j+1};            
              j = j + 2;
+        case 'resample'
+            resample_flag = 1;
+            j = j + 1;
         case 'nofig'
             plot_flag = 0;
             j = j + 1;
@@ -84,7 +88,7 @@ para.kernel_co = kernel1;
 % kernel for the history term
 ht = 0:10;
 kernel3 = log(1+ht);
-kernel3 = normalize(kernel3, -0.01, 0);
+kernel3 = normalize(kernel3, -0.018, 0);
 % tau3 = 10;
 % kernel3 = exp(-h/tau3).*(1 - exp(-h/tau3));
 % hn_offset = [ones(1,round(h(end)/3))*0.025, 0.025:-0.025/(round(h(end)*2/3)):0]; % manually tweaked to approximate that in Yates
@@ -281,11 +285,17 @@ disp('spikes generated')
 % cvstm2(:, offset+1:offset+len_frame) = ...
 %     cvstm2(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
 
-% reshape struct
+% reshape struct & add noise
 for n = 1:nneuron
     for i = 1:len_tr
-        para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:);
-        para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:);
+%         para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:);
+%         para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:);
+        para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:)...
+            + normrnd(median(para.tr(i).spk1(n,:)),median(para.tr(i).spk1(n,:))*0.01,...
+            size(para.tr(i).spk1(n,:)));
+        para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:)...
+            + normrnd(median(para.tr(i).spk2(n,:)),median(para.tr(i).spk2(n,:))*0.01,...
+            size(para.tr(i).spk2(n,:)));
     end
 end
 
@@ -618,6 +628,15 @@ if plot_flag==1
     caxis(cfix)
 
     subplot(1,3,3)
+    if resample_flag==1
+        repeat = 500;
+        [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, repeat);
+        [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, repeat);
+        fill_between(1:nbin, (amph-errh)/nom, (amph+errh)/nom, y)
+        hold on;
+        fill_between(1:nbin, (ampl-errl)/nom, (ampl+errl)/nom, g)
+        hold on;
+    end   
     nom = mean([amph, ampl]);
     plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
     hold on;
@@ -625,7 +644,8 @@ if plot_flag==1
     xlim([0.5 nbin + 0.5])
     ylabel('kernel amplitude')
     set(gca, 'XTick', 1:nbin)
-    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')   
+    
 end
 
 %% 
@@ -674,3 +694,19 @@ a = (newmax - newmin)/(max(max(v)) - min(min(v)));
 b = newmax - max(max(v))*a;
 
 normalized_vector = a.*v + b;
+
+function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, repeat)
+ampr = zeros(repeat, nbin);
+for r = 1:repeat
+    rtr = datasample(1:size(hdxmat,1),size(hdxmat,1));
+    begin = offset+1;
+    tkernel = nan(length(disval), nbin);
+    for a = 1:nbin
+        [tkernel(:,a)] = getKernel(hdxmat(rtr, begin:begin+frameperbin-1), ch(rtr));   
+        begin = begin + frameperbin;
+    end
+    for a = 1:nbin
+        ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
+    end
+end
+err = std(ampr,[],1);
