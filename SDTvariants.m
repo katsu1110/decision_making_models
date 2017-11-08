@@ -7,7 +7,7 @@ kernel = [0.1 0.5 0.2 0.05 0 -0.05 -0.2 -0.5 -0.1];
 bias = 0;
 % threshold = 30;
 % sensitivity = 10/threshold;
-len_tr = 50000;
+len_tr = 5000;
 len_frame = 100;
 
 %% parameters of interest
@@ -26,6 +26,9 @@ nbin = 4;
 % figure
 plot_flag = 0;
 
+% resampling
+resample_flag = 0;
+
 j = 1;              
 while  j<= length(varargin)
     switch varargin{j}
@@ -41,6 +44,9 @@ while  j<= length(varargin)
         case 'nbin'
             nbin = varargin{j+1};            
              j = j + 2;
+        case 'resample'
+            resample_flag = 1;
+            j = j + 1;
         case 'plot'
             plot_flag = 1;
             j = j + 1;
@@ -122,31 +128,31 @@ tkernel = nan(length(hdx), nbin);
 tkernel_h = nan(length(hdx), nbin);
 tkernel_l = nan(length(hdx), nbin);
 begin = 1;
-l = floor(len_frame/nbin);
+frameperbin = floor(len_frame/nbin);
 for a = 1:nbin
     % time-binned PK
-    pk0 = getKernel(stm(:,begin:begin+l-1), ch);
-    pkh = getKernel(stm(conf > med, begin:begin+l-1), ch(conf > med));
-    pkl = getKernel(stm(conf < med, begin:begin+l-1), ch(conf < med));
+    pk0 = getKernel(stm(:,begin:begin+frameperbin-1), ch);
+    pkh = getKernel(stm(conf > med, begin:begin+frameperbin-1), ch(conf > med));
+    pkl = getKernel(stm(conf < med, begin:begin+frameperbin-1), ch(conf < med));
     tkernel(:,a) = pk0';
     tkernel_h(:,a) = pkh';
     tkernel_l(:,a) = pkl';
-    begin = begin + l;
+    begin = begin + frameperbin;
 end
 
-% time-averaged kernel
-avkernel = getKernel(stm, ch);
-avkernel_h = getKernel(stm(conf > med,:), ch(conf > med));
-avkernel_l = getKernel(stm(conf < med,:), ch(conf < med));
+% % time-averaged kernel
+% avkernel = getKernel(stm, ch);
+% avkernel_h = getKernel(stm(conf > med,:), ch(conf > med));
+% avkernel_l = getKernel(stm(conf < med,:), ch(conf < med));
 
 amp = nan(1,nbin);
 amph = nan(1,nbin);
 ampl = nan(1,nbin);
 for a = 1:nbin
     % amplitude of the PK
-    amp(a) = dot(tkernel(:,a), avkernel);
-    amph(a) = dot(tkernel_h(:,a), avkernel_h);
-    ampl(a) = dot(tkernel_l(:,a), avkernel_l);
+    amp(a) = dot(tkernel(:,a), mean(tkernel,2));
+    amph(a) = dot(tkernel_h(:,a), mean(tkernel_h,2));
+    ampl(a) = dot(tkernel_l(:,a), mean(tkernel_l,2));
 end
 
 % output argumant
@@ -187,9 +193,22 @@ if plot_flag==1
 
     subplot(1,3,3)
     nom = mean([amph, ampl]);
-    plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
-    hold on;
-    plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
+    if resample_flag==1
+        repeat = 500;
+        errh = resamplePK(stm(conf > med,:), ch(conf > med), nbin, frameperbin, repeat);
+        errl = resamplePK(stm(conf < med,:), ch(conf < med), nbin, frameperbin, repeat);
+        fill_between(1:nbin, (ampl - errl)/nom, (ampl + errl)/nom, g)
+        hold on;
+        plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
+        hold on;
+        fill_between(1:nbin, (amph - errh)/nom, (amph + errh)/nom, y)
+        hold on;       
+        plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
+    else
+        plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
+        hold on;
+        plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
+    end    
     xlim([0.5 nbin + 0.5])
     ylabel('kernel amplitude')
     set(gca, 'XTick', 1:nbin)
@@ -212,3 +231,21 @@ end
 
 % compute PK for 0% stimulus
 pk0 = mean(svmat(ch==0,:)) - mean(svmat(ch==1,:));
+
+function err = resamplePK(hdxmat, ch, nbin, frameperbin, repeat)
+disval = unique(hdxmat);
+len_d = length(disval);
+ampr = nan(repeat, nbin);
+for r = 1:repeat
+    rtr = datasample(1:length(ch), length(ch));
+    tkernel = nan(len_d, nbin);
+    begin = 1;
+    for n = 1:nbin
+        tkernel(:,n) = getKernel(hdxmat(rtr,begin:begin+frameperbin-1), ch(rtr));
+        begin = begin + frameperbin;
+    end
+    for n = 1:nbin
+        ampr(r,n) = dot(tkernel(:,n), mean(tkernel,2));
+    end
+end
+err = std(ampr, [], 1);
