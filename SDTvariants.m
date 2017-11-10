@@ -230,7 +230,7 @@ for r = 1:size(hdxmat,1)
 end
 
 % compute PK for 0% stimulus
-pk0 = mean(svmat(ch==0,:)) - mean(svmat(ch==1,:));
+pk0 = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
 
 function err = resamplePK(hdxmat, ch, nbin, frameperbin, repeat)
 disval = unique(hdxmat);
