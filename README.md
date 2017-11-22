@@ -1,7 +1,16 @@
 # DecisionMaking_models
-My attempts to model and simulate behavioral & neural data.
+Attempts to model and simulate behavioral & neural data. Note that these model implementations are generally simplified and not strictly based on the original studies. Basically this repository is to understand how these decision-making models work.
 
-- Signal Detection Theory
-- "stimulus-to-MT model" by Yates et al., Nature Neuroscience, 2017
-
-
+- Signal detection theory
+  - Integrated-to-bound model (Kiani et al., Journal of Neuroscience 2008)...ongoing
+  - SDT with weighted-integration model ...ongoing
+  - SDT with pooling noise ...ongoing
+  - Leaky-integrator model ...upcoming
+- Bayesian perception
+  - case of 2AFC (Vincent et al, Journal of Mathematical Psychology 2015) ...upcoming
+  - Bayesian sampling (Sanborn & Chater, Trends in Cognitive Sciences 2016) ...upcoming
+- Stimulus-to-MT model (Yates et al., Nature Neuroscience 2017) ...ongoing
+- Attractor model ...upcoming
+  - Bayesian attractor model (Bitzer et al., PLoS Computational Biology 2016) ...upcoming
+- Reinforcement learning
+  - Partially observable Marcov decision process (Lak et al, Current Biology 2017) ...upcoming
