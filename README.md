@@ -7,7 +7,8 @@ Attempts to model and simulate behavioral & neural data. Note that these model i
   - SDT with pooling noise ...ongoing
   - Leaky-integrator model (Ossmy et al., Current Biology 2013) ...upcoming
 - Bayesian perception
-  - case of 2AFC (Vincent, Journal of Mathematical Psychology 2015) ...upcoming
+  - Case of 2AFC (Vincent, Journal of Mathematical Psychology 2015) in the repository 'bayesian2afc'
+  - Probablistic inference by neural sampling (Ralf et al., Neuron 2016) in the repository 'sampling_decision'
   - Bayesian sampling (Sanborn & Chater, Trends in Cognitive Sciences 2016) ...upcoming
 - Stimulus-to-MT model (Yates et al., Nature Neuroscience 2017) ...ongoing
 - Attractor model
