@@ -1,5 +1,6 @@
 function [para] = SDTvariants(varargin)
-%% simulation of SDT using specified "noise", "weights", and "db"
+%% simulation of Signal detection theory (SDT) manipulating specified "noise", "weights", "db" and "leak"
+
 %% pre-set parameters
 % hdx = [0.3 0.2 0.1 0.01 -0.01 -0.1 -0.2 -0.3];
 hdx = 0.3*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
@@ -19,7 +20,10 @@ weights = ones(1, len_frame);
 
 % decision boundry
 db = 100;
-    
+
+% leak 
+leak = 0;
+
 % number of bin
 nbin = 4;
 
@@ -41,6 +45,9 @@ while  j<= length(varargin)
         case 'db'
             db = varargin{j+1};
             j = j + 2;
+        case 'leak'
+            leak = varargin{j+1};
+            j = j + 2;
         case 'nbin'
             nbin = varargin{j+1};            
              j = j + 2;
@@ -54,7 +61,9 @@ while  j<= length(varargin)
 end
 
 disp('----------------------------------------------------------------')
-disp(['noise: ' num2str(noise) ', weightes: ' num2str((weights(end)-weights(1))/len_frame) ', DB:' num2str(db)])
+disp(['noise: ' num2str(noise) ', weightes: ' num2str((weights(end)-weights(1))/len_frame) ', DB:' num2str(db) ', leak:' num2str(leak)])
+
+leak = leak*linspace(1,len_frame,len_frame)/len_frame;
 
 %% generate artificial dataset
 % seed
@@ -76,18 +85,24 @@ sensoryrep = dvs;
 sensorynoise = normrnd(0, noise, [len_tr, len_frame]);
 dvs = sensoryrep + sensorynoise;
 
-% weights on time-course
-dvs = dvs.*repmat(weights, len_tr, 1);
-
 % choice based on decision boundry
-advs = cumsum(dvs, 2);
-db_advs = advs;
+idvs = zeros(len_tr, len_frame);
 dt = len_frame*ones(len_tr,1);
 dbreach = zeros(len_tr, 1);
 for c = 1:len_tr
-    idx = find(abs(advs(c,:)) >= db);
+    
+    % sensory weighting
+    idvs(c,:) = dvs(c,:).*weights;
+    
+    % (leaky) integration
+    for f = 2:len_frame        
+        idvs(c,f) = idvs(c,f-1)*(1 - leak(f)) + dvs(c,f);
+    end
+    
+    % bound and decision time
+    idx = find(abs(idvs(c,:)) >= db);
     if ~isempty(idx)
-        db_advs(c, idx(1):end) = advs(c, idx(1));
+        idvs(c, idx(1):end) = idvs(c, idx(1));
         dt(c) = idx(1);
         dbreach(c) = 1;
     end
@@ -97,9 +112,9 @@ disp(['The % trials reaching the DB: ' num2str(100*sum(dbreach==1)/len_tr)])
 
 % median split of DVs
 if db==100
-    conf = abs(db_advs(:,end));
+    conf = abs(idvs(:,end));
 else
-    conf = (2/pi)*atan(abs(db_advs(:,end))./(dt/len_frame));
+    conf = (2/pi)*atan(abs(idvs(:,end))./(dt/len_frame));
 end
 
 % add noise on confidence judgement
@@ -112,7 +127,7 @@ disp([num2str(100*sum(dbreach==1 & conf > med)/sum(conf > med)) ...
     '% trials reached DB in low confidence '])
 
 % choice 
-ch = sign(db_advs(:,end) - (bias/100)*ones(len_tr,1));
+ch = sign(idvs(:,end) - (bias/100)*ones(len_tr,1));
 
 idx0 = find(ch==0);
 len0 = length(idx0);
