@@ -63,7 +63,7 @@ end
 disp('----------------------------------------------------------------')
 disp(['noise: ' num2str(noise) ', weightes: ' num2str((weights(end)-weights(1))/len_frame) ', DB:' num2str(db) ', leak:' num2str(leak)])
 
-leak = leak*linspace(1,len_frame,len_frame)/len_frame;
+leak = leak./(linspace(1,len_frame,len_frame)/len_frame);
 
 %% generate artificial dataset
 % seed
