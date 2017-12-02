@@ -86,7 +86,7 @@ para.kernel_co = kernel1;
 
 %%
 % kernel for the history term
-ht = 0:10;
+ht = 0:50;
 kernel3 = log(1+ht);
 kernel3 = normalize(kernel3, -0.018, 0);
 % tau3 = 10;
@@ -509,11 +509,14 @@ for a = 1:nbin
     
     begin = begin + frameperbin;
 end
-
+tapk = mean(tkernel,2)';
 for a = 1:nbin
-    amp(a) = tkernel(:,a)'*mean(tkernel,2);
-    amph(a) = tkernel_h(:,a)'*mean(tkernel_h,2);
-    ampl(a) = tkernel_l(:,a)'* mean(tkernel_l,2);
+%     amp(a) = tkernel(:,a)'*mean(tkernel,2);
+%     amph(a) = tkernel_h(:,a)'*mean(tkernel_h,2);
+%     ampl(a) = tkernel_l(:,a)'* mean(tkernel_l,2);
+    amp(a) = tapk*tkernel(:,a);
+    amph(a) = tapk*tkernel_h(:,a);
+    ampl(a) = tapk*tkernel_l(:,a);
 end
 
 para.amp_h = amph;
@@ -630,8 +633,8 @@ if plot_flag==1
     subplot(1,3,3)
     if resample_flag==1
         repeat = 500;
-        [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, repeat);
-        [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, repeat);
+        [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, tapk, repeat);
+        [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, tapk, repeat);
         fill_between(1:nbin, (amph-errh)/nom, (amph+errh)/nom, y)
         hold on;
         fill_between(1:nbin, (ampl-errl)/nom, (ampl+errl)/nom, g)
@@ -643,6 +646,7 @@ if plot_flag==1
     plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
     xlim([0.5 nbin + 0.5])
     ylabel('kernel amplitude')
+    title(cfix)
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')   
     
@@ -695,7 +699,7 @@ b = newmax - max(max(v))*a;
 
 normalized_vector = a.*v + b;
 
-function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, repeat)
+function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, tapk, repeat)
 ampr = zeros(repeat, nbin);
 for r = 1:repeat
     rtr = datasample(1:size(hdxmat,1),size(hdxmat,1));
@@ -706,7 +710,26 @@ for r = 1:repeat
         begin = begin + frameperbin;
     end
     for a = 1:nbin
-        ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
+%         ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
+        ampr(r,a) = tapk*tkernel(:,a);
     end
 end
 err = std(ampr,[],1);
+
+function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
+if nargin < 3
+        error('x, y_bottom, y_top are required as input arguments')
+elseif nargin==3
+        maincolor = [0 0 0];
+        transparency = [];
+elseif nargin==4
+        transparency = [];
+end
+
+edgecolor = maincolor + (1 - maincolor)*0.55;
+
+h = fill([x fliplr(x)],[y_bottom fliplr(y_top)],edgecolor);
+set(h,'EdgeColor','none')
+if ~isnan(transparency)
+        alpha(transparency)
+end

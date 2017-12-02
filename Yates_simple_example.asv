@@ -152,15 +152,15 @@ for a = 1:nbin
 %     amp(a) = tkernel(:,a)'*mean(tkernel,2);
 %     amph(a) = tkernel_h(:,a)'*mean(tkernel_h,2);
 %     ampl(a) = tkernel_l(:,a)'* mean(tkernel_l,2);
-    amp(a) = tapk*tkernel(:,a);
-    amph(a) = tapk*tkernel_h(:,a);
-    ampl(a) = tapk*tkernel_l(:,a);
+    amp(a) = tkernel(:,a);
+    amph(a) = tkernel_h(:,a)'*mean(tkernel,2);
+    ampl(a) = tkernel_l(:,a)'* mean(tkernel,2);
 end
 if resample_flag==1
     repeat = 500;
 %     [err] = resamplePK(hdx, stm, ch, offset, nbin, frameperbin, repeat);
-    [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, tapk, repeat);
-    [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, tapk, repeat);
+    [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, repeat);
+    [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, repeat);
 end
 disp('PK computed')
 
@@ -308,7 +308,6 @@ if plot_flag==1
     plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
     xlim([0.5 nbin + 0.5])
     ylabel('kernel amplitude')
-    title(c)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
 
@@ -343,7 +342,7 @@ end
 
 pk0 = mean(svmat(ch==0,:),1) - mean(svmat(ch==1,:),1);
 
-function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, tapk, repeat)
+function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, repeat)
 ampr = zeros(repeat, nbin);
 for r = 1:repeat
     rtr = datasample(1:size(hdxmat,1),size(hdxmat,1));
@@ -354,8 +353,7 @@ for r = 1:repeat
         begin = begin + frameperbin;
     end
     for a = 1:nbin
-%         ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
-        ampr(r,a) = tapk*tkernel(:,a);
+        ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
     end
 end
 err = std(ampr,[],1);

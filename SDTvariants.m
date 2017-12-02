@@ -155,8 +155,8 @@ for a = 1:nbin
     begin = begin + frameperbin;
 end
 
-% % time-averaged kernel
-% avkernel = getKernel(stm, ch);
+% time-averaged kernel
+avkernel = getKernel(stm, ch);
 % avkernel_h = getKernel(stm(conf > med,:), ch(conf > med));
 % avkernel_l = getKernel(stm(conf < med,:), ch(conf < med));
 
@@ -165,9 +165,13 @@ amph = nan(1,nbin);
 ampl = nan(1,nbin);
 for a = 1:nbin
     % amplitude of the PK
-    amp(a) = dot(tkernel(:,a), mean(tkernel,2));
-    amph(a) = dot(tkernel_h(:,a), mean(tkernel_h,2));
-    ampl(a) = dot(tkernel_l(:,a), mean(tkernel_l,2));
+%     amp(a) = dot(tkernel(:,a), mean(tkernel,2));
+%     amph(a) = dot(tkernel_h(:,a), mean(tkernel_h,2));
+%     ampl(a) = dot(tkernel_l(:,a), mean(tkernel_l,2));
+
+    amp(a) = dot(tkernel(:,a), avkernel);
+    amph(a) = dot(tkernel_h(:,a), avkernel);
+    ampl(a) = dot(tkernel_l(:,a), avkernel);
 end
 
 % output argumant
@@ -185,7 +189,7 @@ if plot_flag==1
     
     subplot(1,3,1)
     imagesc(1:nbin, hdx, tkernel_h)
-    colormap(pink)
+    colormap(copper)
     c_h = caxis;
     xlabel('time bin')
     ylabel('hdx')
@@ -194,7 +198,7 @@ if plot_flag==1
 
     subplot(1,3,2)
     imagesc(1:nbin, hdx, tkernel_l)
-    colormap(pink)
+    colormap(copper)
     c_l = caxis;
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
@@ -204,14 +208,14 @@ if plot_flag==1
     caxis(cfix)
     subplot(1,3,2)
     caxis(cfix)
-    cfix
+    title(cfix)
 
     subplot(1,3,3)
     nom = mean([amph, ampl]);
     if resample_flag==1
-        repeat = 500;
-        errh = resamplePK(stm(conf > med,:), ch(conf > med), nbin, frameperbin, repeat);
-        errl = resamplePK(stm(conf < med,:), ch(conf < med), nbin, frameperbin, repeat);
+        repeat = 1000;
+        errh = resamplePK(stm(conf > med,:), ch(conf > med), nbin, frameperbin, avkernel, repeat);
+        errl = resamplePK(stm(conf < med,:), ch(conf < med), nbin, frameperbin, avkernel, repeat);
         fill_between(1:nbin, (ampl - errl)/nom, (ampl + errl)/nom, g)
         hold on;
         plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
@@ -247,7 +251,7 @@ end
 % compute PK for 0% stimulus
 pk0 = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
 
-function err = resamplePK(hdxmat, ch, nbin, frameperbin, repeat)
+function err = resamplePK(hdxmat, ch, nbin, frameperbin, tapk, repeat)
 disval = unique(hdxmat);
 len_d = length(disval);
 ampr = nan(repeat, nbin);
@@ -260,7 +264,25 @@ for r = 1:repeat
         begin = begin + frameperbin;
     end
     for n = 1:nbin
-        ampr(r,n) = dot(tkernel(:,n), mean(tkernel,2));
+        ampr(r,n) = dot(tkernel(:,n), tapk);
     end
 end
 err = std(ampr, [], 1);
+
+function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
+if nargin < 3
+        error('x, y_bottom, y_top are required as input arguments')
+elseif nargin==3
+        maincolor = [0 0 0];
+        transparency = [];
+elseif nargin==4
+        transparency = [];
+end
+
+edgecolor = maincolor + (1 - maincolor)*0.55;
+
+h = fill([x fliplr(x)],[y_bottom fliplr(y_top)],edgecolor);
+set(h,'EdgeColor','none')
+if ~isnan(transparency)
+        alpha(transparency)
+end
