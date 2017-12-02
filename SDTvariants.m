@@ -118,7 +118,7 @@ else
 end
 
 % add noise on confidence judgement
-conf = conf + normrnd(median(conf), 0.2*(max(max(conf)) - min(min(conf))), size(conf));
+conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
 
 med = median(conf);
 disp([num2str(100*sum(dbreach==1 & conf > med)/sum(conf > med)) ...

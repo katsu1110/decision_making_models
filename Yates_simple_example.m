@@ -123,6 +123,9 @@ disp(['ch 1: ' num2str(sum(ch==1)) ', ch2: ' num2str(sum(ch==0))])
 %%
 % confidence
 conf = abs(ev);
+
+% add noise on confidence judgement
+conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
 med = median(conf);
 
 %%

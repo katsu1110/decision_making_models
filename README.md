@@ -5,7 +5,7 @@ Attempts to model and simulate behavioral & neural data. Note that these model i
   - Integrated-to-bound model (Kiani et al., Journal of Neuroscience 2008) ...ongoing
   - SDT with weighted-integration model ...ongoing
   - SDT with pooling noise ...ongoing
-  - Leaky-integrator model (Ossmy et al., Current Biology 2013) ...upcoming
+  - Leaky-integrator model (Ossmy et al., Current Biology 2013) ...ongoing
 - Bayesian perception
   - Case of 2AFC (Vincent, Journal of Mathematical Psychology 2015) in the repository 'bayesian2afc'
   - Probablistic inference by neural sampling (Ralf et al., Neuron 2016) in the repository 'sampling_decision'

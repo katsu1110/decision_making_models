@@ -452,7 +452,7 @@ end
 %%
 % confidence
 conf = abs(ev);
-% conf = conf + normrnd(median(conf), 1*median(conf), size(conf));
+conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
 med = median(conf);
 
 %%
