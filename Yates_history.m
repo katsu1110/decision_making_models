@@ -610,7 +610,7 @@ if plot_flag==1
     figure(10);
     subplot(1,3,1)
     imagesc(1:nbin, hdx, tkernel_h)
-    colormap(pink)
+    colormap(copper)
     c_h = caxis;
     xlabel('time bin')
     ylabel('hdx')
@@ -619,7 +619,7 @@ if plot_flag==1
 
     subplot(1,3,2)
     imagesc(1:nbin, hdx, tkernel_l)
-    colormap(pink)
+    colormap(copper)
     c_l = caxis;
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
