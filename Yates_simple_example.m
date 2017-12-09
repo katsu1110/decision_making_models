@@ -6,7 +6,7 @@ function [para] = Yates_simple_example(varargin)
 % +++++++++++++++++++++++++++++++++++++++++++++++
 
 % input arguments
-len_tr = 2000;
+len_tr = 5000;
 tmax = 400;
 tau = 30;
 kernelgain_s = 0.05;
@@ -273,6 +273,7 @@ if plot_flag==1
 
     subplot(1,3,1)
     imagesc(1:nbin, hdx, tkernel_h)
+    colormap(copper)
     c1 = caxis;
     xlabel('time bin')
     ylabel('hdx')
@@ -280,6 +281,7 @@ if plot_flag==1
 
     subplot(1,3,2)
     imagesc(1:nbin, hdx, tkernel_l)
+    colormap(copper)
     c2 = caxis;
     xlabel('time bin')
     ylabel('hdx')

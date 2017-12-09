@@ -8,7 +8,7 @@ close all;
 
 % input arguments
 nneuron = 10;
-len_tr = 1000;
+len_tr = 5000;
 tmax = 400;
 tau = 30;
 kernelgain_s = 0.05;
