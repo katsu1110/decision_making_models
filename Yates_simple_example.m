@@ -11,7 +11,7 @@ tmax = 400;
 tau = 30;
 kernelgain_s = 0.05;
 kernelgain_c = 0.05;
-offset_gain = 0.9;
+offset_gain = 1;
 stm_gain = 0.3;
 plot_flag = 1;
 resample_flag = 0;
@@ -50,8 +50,17 @@ end
 hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 lenhdx = length(hdx);
-len_frame = 1050;
-nbin = 7;
+nbin = 4;
+if nbin==4
+    len_frame = 1000;
+elseif nbin==7
+    len_frame = 1050;
+end
+lenhdx = length(hdx);
+hdxlab = cell(1, lenhdx);
+for i = 1:lenhdx
+    hdxlab{i} = num2str(hdx(i));
+end
 
 % contrast
 offset = 100;
@@ -124,8 +133,8 @@ disp(['ch 1: ' num2str(sum(ch==1)) ', ch2: ' num2str(sum(ch==0))])
 % confidence
 conf = abs(ev);
 
-% add noise on confidence judgement
-conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
+% % add noise on confidence judgement
+% conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
 med = median(conf);
 
 %%
@@ -149,18 +158,13 @@ for a = 1:nbin
 end
 tapk = mean(tkernel,2)';
 for a = 1:nbin
-%     amp(a) = tkernel(:,a)'*mean(tkernel,2);
-%     amph(a) = tkernel_h(:,a)'*mean(tkernel_h,2);
-%     ampl(a) = tkernel_l(:,a)'* mean(tkernel_l,2);
     amp(a) = tapk*tkernel(:,a);
     amph(a) = tapk*tkernel_h(:,a);
     ampl(a) = tapk*tkernel_l(:,a);
 end
 if resample_flag==1
-    repeat = 500;
-%     [err] = resamplePK(hdx, stm, ch, offset, nbin, frameperbin, repeat);
-    [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, tapk, repeat);
-    [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, tapk, repeat);
+    repeat = 1000;
+    [err, errl, errh] = resamplePK(hdx, stm, ch, offset, nbin, frameperbin, conf, med, repeat);
 end
 disp('PK computed')
 
@@ -260,6 +264,27 @@ if plot_flag==1
 
     %%
     % debug PK
+    figure;
+
+    subplot(1,2,1)
+    imagesc(1:nbin, hdx, tkernel/max(tkernel(:)))
+    colormap(copper)
+    c = caxis;
+    xlabel('time bin')
+    ylabel('hdx')
+    title(c)
+
+    subplot(1,2,2)
+    nom = mean(amp);
+    if resample_flag==1
+        fill_between(1:nbin, (amp-err)/nom, (amp+err)/nom, [0 0 0])
+        hold on;
+    end
+    plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
+    xlim([0.5 nbin + 0.5])
+    ylabel('kernel amplitude')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
     % yellow and green
     y = [0.9576    0.7285    0.2285];
     g = [0.1059    0.4706    0.2157];
@@ -272,7 +297,8 @@ if plot_flag==1
 %     title('overall')
 
     subplot(1,3,1)
-    imagesc(1:nbin, hdx, tkernel_h)
+    vmax = max([max(tkernel_h(:)), max(tkernel_l(:))]);
+    imagesc(1:nbin, hdx, tkernel_h/vmax)
     colormap(copper)
     c1 = caxis;
     xlabel('time bin')
@@ -280,7 +306,7 @@ if plot_flag==1
     title('high conf.')
 
     subplot(1,3,2)
-    imagesc(1:nbin, hdx, tkernel_l)
+    imagesc(1:nbin, hdx, tkernel_l/vmax)
     colormap(copper)
     c2 = caxis;
     xlabel('time bin')
@@ -345,22 +371,36 @@ end
 
 pk0 = mean(svmat(ch==0,:),1) - mean(svmat(ch==1,:),1);
 
-function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, tapk, repeat)
+function [err, err0, err1] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, conf, med, repeat)
+conf0 = find(conf < med);
+conf1 = find(conf > med);
 ampr = zeros(repeat, nbin);
+ampr0 = zeros(repeat, nbin);
+ampr1 = zeros(repeat, nbin);
 for r = 1:repeat
-    rtr = datasample(1:size(hdxmat,1),size(hdxmat,1));
-    begin = offset+1;
+    rtr0 = datasample(conf0, length(conf0));
+    rtr1 = datasample(conf1, length(conf1));
+    rtr = [rtr0, rtr1];
     tkernel = nan(length(disval), nbin);
+    tkernel0 = nan(length(disval), nbin);
+    tkernel1 = nan(length(disval), nbin);
+    begin = offset+1;   
     for a = 1:nbin
         [tkernel(:,a)] = getKernel(disval, hdxmat(rtr, begin:begin+frameperbin-1), ch(rtr));   
+        [tkernel0(:,a)] = getKernel(disval, hdxmat(rtr0, begin:begin+frameperbin-1), ch(rtr0));  
+        [tkernel1(:,a)] = getKernel(disval, hdxmat(rtr1, begin:begin+frameperbin-1), ch(rtr1));  
         begin = begin + frameperbin;
     end
+    tapk = mean(tkernel,2)';
     for a = 1:nbin
-%         ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
         ampr(r,a) = tapk*tkernel(:,a);
+        ampr0(r,a) = tapk*tkernel0(:,a);
+        ampr1(r,a) = tapk*tkernel1(:,a);
     end
 end
 err = std(ampr,[],1);
+err0 = std(ampr0,[],1);
+err1 = std(ampr1,[],1);
 
 function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
 if nargin < 3

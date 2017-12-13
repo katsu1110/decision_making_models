@@ -13,7 +13,7 @@ tmax = 400;
 tau = 30;
 kernelgain_s = 0.05;
 kernelgain_c = 0.05;
-offset_gain = 0.9;
+offset_gain = 1;
 stm_gain = 0.3;
 plot_flag = 1;
 resample_flag = 0;
@@ -56,13 +56,17 @@ g = [0.1059    0.4706    0.2157];
 
 hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
-len_frame = 1050;
+nbin = 4;
+if nbin==4
+    len_frame = 1000;
+elseif nbin==7
+    len_frame = 1050;
+end
 lenhdx = length(hdx);
 hdxlab = cell(1, lenhdx);
 for i = 1:lenhdx
     hdxlab{i} = num2str(hdx(i));
 end
-nbin = 7;
 
 % contrast
 offset = 100;
@@ -279,11 +283,6 @@ for i = 1:len_tr
     end
 end
 disp('spikes generated')
-% % noise
-% cvstm1(:, offset+1:offset+len_frame) = ...
-%     cvstm1(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
-% cvstm2(:, offset+1:offset+len_frame) = ...
-%     cvstm2(:, offset+1:offset+len_frame) + normrnd(0, 5, [len_tr, len_frame]);
 
 % reshape struct & add noise
 for n = 1:nneuron
@@ -452,7 +451,7 @@ end
 %%
 % confidence
 conf = abs(ev);
-conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
+% conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
 med = median(conf);
 
 %%
@@ -503,9 +502,9 @@ ampl = nan(1, nbin);
 begin = offset+1;
 for a = 1:nbin
 %     disp(['bin ' num2str(a) ': ' num2str(begin - offset) ' to ' num2str(begin+frameperbin-1-offset)])
-    [tkernel(:,a)] = getKernel(stm(:, begin:begin+frameperbin-1), ch);
-    [tkernel_h(:,a)] = getKernel(stm(conf > med, begin:begin+frameperbin-1), ch(conf > med));
-    [tkernel_l(:,a)] = getKernel(stm(conf < med, begin:begin+frameperbin-1), ch(conf < med));
+    [tkernel(:,a)] = getKernel(hdx, stm(:, begin:begin+frameperbin-1), ch);
+    [tkernel_h(:,a)] = getKernel(hdx, stm(conf > med, begin:begin+frameperbin-1), ch(conf > med));
+    [tkernel_l(:,a)] = getKernel(hdx, stm(conf < med, begin:begin+frameperbin-1), ch(conf < med));
     
     begin = begin + frameperbin;
 end
@@ -608,8 +607,31 @@ if plot_flag==1
 
     % additional figures for paper
     figure(10);
+    subplot(1,2,1)
+    imagesc(1:nbin, hdx, tkernel/max(tkernel(:)))
+    colormap(copper)
+    c = caxis;
+    xlabel('time bin')
+    ylabel('hdx')
+    title(c)
+
+    subplot(1,2,2)
+    nom = mean(amp);
+    if resample_flag==1
+        repeat = 1000;
+        [err, errl, errh] = resamplePK(hdx, stm, ch, offset, nbin, frameperbin, conf, med, repeat);
+        fill_between(1:nbin, (amp-err)/nom, (amp+err)/nom, [0 0 0])
+        hold on;
+    end
+    plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
+    xlim([0.5 nbin + 0.5])
+    ylabel('kernel amplitude')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    figure(11);
     subplot(1,3,1)
-    imagesc(1:nbin, hdx, tkernel_h)
+    vmax = max([max(tkernel_h(:)), max(tkernel_l(:))]);
+    imagesc(1:nbin, hdx, tkernel_h/vmax)
     colormap(copper)
     c_h = caxis;
     xlabel('time bin')
@@ -618,7 +640,7 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
     subplot(1,3,2)
-    imagesc(1:nbin, hdx, tkernel_l)
+    imagesc(1:nbin, hdx, tkernel_l/vmax)
     colormap(copper)
     c_l = caxis;
     set(gca, 'XTick', 1:nbin)
@@ -632,9 +654,6 @@ if plot_flag==1
 
     subplot(1,3,3)
     if resample_flag==1
-        repeat = 500;
-        [errh] = resamplePK(hdx, stm(conf > med,:), ch(conf > med), offset, nbin, frameperbin, tapk, repeat);
-        [errl] = resamplePK(hdx, stm(conf < med,:), ch(conf < med), offset, nbin, frameperbin, tapk, repeat);
         fill_between(1:nbin, (amph-errh)/nom, (amph+errh)/nom, y)
         hold on;
         fill_between(1:nbin, (ampl-errl)/nom, (ampl+errl)/nom, g)
@@ -670,10 +689,9 @@ for n = 1:nbin
     begin = begin + frameperbin;
 end
 
-function [pk0] = getKernel(hdxmat, ch)
+function [pk0] = getKernel(disval, hdxmat, ch)
 
 % trial averaged stimulus distributions
-disval = unique(hdxmat);
 len_d = length(disval);
 svmat = zeros(size(hdxmat,1), len_d);
 for r = 1:size(hdxmat,1)
@@ -699,22 +717,39 @@ b = newmax - max(max(v))*a;
 
 normalized_vector = a.*v + b;
 
-function [err] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, tapk, repeat)
+function [err, err0, err1] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, conf, med, repeat)
+conf0 = find(conf < med);
+conf1 = find(conf > med);
 ampr = zeros(repeat, nbin);
+ampr0 = zeros(repeat, nbin);
+ampr1 = zeros(repeat, nbin);
 for r = 1:repeat
-    rtr = datasample(1:size(hdxmat,1),size(hdxmat,1));
-    begin = offset+1;
+    rtr0 = datasample(conf0, length(conf0));
+    rtr1 = datasample(conf1, length(conf1));
+    rtr = [rtr0, rtr1];
     tkernel = nan(length(disval), nbin);
+    tkernel0 = nan(length(disval), nbin);
+    tkernel1 = nan(length(disval), nbin);
+    begin = offset+1;   
     for a = 1:nbin
-        [tkernel(:,a)] = getKernel(hdxmat(rtr, begin:begin+frameperbin-1), ch(rtr));   
+        [tkernel(:,a)] = getKernel(disval, hdxmat(rtr, begin:begin+frameperbin-1), ch(rtr));   
+        [tkernel0(:,a)] = getKernel(disval, hdxmat(rtr0, begin:begin+frameperbin-1), ch(rtr0));  
+        [tkernel1(:,a)] = getKernel(disval, hdxmat(rtr1, begin:begin+frameperbin-1), ch(rtr1));  
         begin = begin + frameperbin;
     end
+    tapk = mean(tkernel,2)';
     for a = 1:nbin
-%         ampr(r,a) = tkernel(:,a)'*mean(tkernel,2);
         ampr(r,a) = tapk*tkernel(:,a);
+        ampr0(r,a) = tapk*tkernel0(:,a);
+        ampr1(r,a) = tapk*tkernel1(:,a);
+%         ampr(r,a) = mean(tkernel,2)'*tkernel(:,a);
+%         ampr0(r,a) = mean(tkernel0,2)'*tkernel0(:,a);
+%         ampr1(r,a) = mean(tkernel1,2)'*tkernel1(:,a);
     end
 end
 err = std(ampr,[],1);
+err0 = std(ampr0,[],1);
+err1 = std(ampr1,[],1);
 
 function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
 if nargin < 3

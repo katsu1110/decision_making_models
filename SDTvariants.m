@@ -1,5 +1,21 @@
 function [para] = SDTvariants(varargin)
-%% simulation of Signal detection theory (SDT) manipulating specified "noise", "weights", "db" and "leak"
+%% 
+% simulation of Signal detection theory (SDT) manipulating specified "noise", "weights", "db" and "leak"
+% INPUT:
+% 'noise' ... float; add pooling noise 
+% 'weights' ... vector with its length of len_frame (100 in default); multiplied with stimulus sequence
+% 'db' ... float; decision boundary
+% 'leak' ... float; leaky integration
+% 'nbin' ... the number of time bins to compute the time-resolved
+% psychophysical kernel
+% 'resample' ... perform resampling (bootstrap) to get error bars for the
+% kernel amplitude
+% 'plot' ... plot the results
+%
+% OUTPUT:
+% matlab structure including relevant information
+
+
 
 %% pre-set parameters
 % hdx = [0.3 0.2 0.1 0.01 -0.01 -0.1 -0.2 -0.3];
@@ -117,8 +133,8 @@ else
     conf = (2/pi)*atan(abs(idvs(:,end))./(dt/len_frame));
 end
 
-% add noise on confidence judgement
-conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
+% % add noise on confidence judgement
+% conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
 
 med = median(conf);
 disp([num2str(100*sum(dbreach==1 & conf > med)/sum(conf > med)) ...
@@ -186,9 +202,39 @@ if plot_flag==1
     
     close all;
     figure;
+    subplot(1,2,1)
+    imagesc(1:nbin, hdx, tkernel/max(tkernel(:)))
+    colormap(copper)
+    xlabel('time bin')
+    ylabel('hdx')
+    set(gca, 'XTick', 1:nbin)
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    c = caxis;
+    set(gca, 'XTick', 1:nbin)
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    title(c)
+
+    subplot(1,2,2)
+    nom = mean(amp);
+    if resample_flag==1
+        repeat = 1000;
+        [err, errl, errh] = resamplePK(stm, ch, nbin, frameperbin, conf, med, repeat);
+        fill_between(1:nbin, (amp - err)/nom, (amp + err)/nom, [0 0 0])
+        hold on;       
+        plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
+    else
+        plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
+    end    
+    xlim([0.5 nbin + 0.5])
+    ylabel('kernel amplitude')
+    set(gca, 'XTick', 1:nbin)
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+    
+    figure;
     
     subplot(1,3,1)
-    imagesc(1:nbin, hdx, tkernel_h)
+    vmax = max([max(tkernel_h(:)), max(tkernel_l(:))]);
+    imagesc(1:nbin, hdx, tkernel_h/vmax)
     colormap(copper)
     c_h = caxis;
     xlabel('time bin')
@@ -197,7 +243,7 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
     subplot(1,3,2)
-    imagesc(1:nbin, hdx, tkernel_l)
+    imagesc(1:nbin, hdx, tkernel_l/vmax)
     colormap(copper)
     c_l = caxis;
     set(gca, 'XTick', 1:nbin)
@@ -213,9 +259,6 @@ if plot_flag==1
     subplot(1,3,3)
     nom = mean([amph, ampl]);
     if resample_flag==1
-        repeat = 1000;
-        errh = resamplePK(stm(conf > med,:), ch(conf > med), nbin, frameperbin, avkernel, repeat);
-        errl = resamplePK(stm(conf < med,:), ch(conf < med), nbin, frameperbin, avkernel, repeat);
         fill_between(1:nbin, (ampl - errl)/nom, (ampl + errl)/nom, g)
         hold on;
         plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
@@ -251,23 +294,38 @@ end
 % compute PK for 0% stimulus
 pk0 = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
 
-function err = resamplePK(hdxmat, ch, nbin, frameperbin, tapk, repeat)
+function [err, err0, err1] = resamplePK(hdxmat, ch, nbin, frameperbin, conf, med, repeat)
+conf0 = find(conf < med);
+conf1 = find(conf > med);
 disval = unique(hdxmat);
 len_d = length(disval);
 ampr = nan(repeat, nbin);
+ampr0 = nan(repeat, nbin);
+ampr1 = nan(repeat, nbin);
 for r = 1:repeat
-    rtr = datasample(1:length(ch), length(ch));
+    rtr0 = datasample(conf0, length(conf0));
+    rtr1 = datasample(conf1, length(conf1));
+    rtr = [rtr0, rtr1];
     tkernel = nan(len_d, nbin);
+    tkernel0 = nan(len_d, nbin);
+    tkernel1 = nan(len_d, nbin);
     begin = 1;
     for n = 1:nbin
         tkernel(:,n) = getKernel(hdxmat(rtr,begin:begin+frameperbin-1), ch(rtr));
+        tkernel0(:,n) = getKernel(hdxmat(rtr0,begin:begin+frameperbin-1), ch(rtr0));
+        tkernel1(:,n) = getKernel(hdxmat(rtr1,begin:begin+frameperbin-1), ch(rtr1));
         begin = begin + frameperbin;
     end
+    tapk = getKernel(hdxmat(rtr,:), ch(rtr));
     for n = 1:nbin
         ampr(r,n) = dot(tkernel(:,n), tapk);
+        ampr0(r,n) = dot(tkernel0(:,n), tapk);
+        ampr1(r,n) = dot(tkernel1(:,n), tapk);
     end
 end
 err = std(ampr, [], 1);
+err0 = std(ampr0, [], 1);
+err1 = std(ampr1, [], 1);
 
 function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
 if nargin < 3
