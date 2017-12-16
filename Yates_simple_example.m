@@ -6,7 +6,7 @@ function [para] = Yates_simple_example(varargin)
 % +++++++++++++++++++++++++++++++++++++++++++++++
 
 % input arguments
-len_tr = 5000;
+len_tr = 50000;
 tmax = 400;
 tau = 30;
 kernelgain_s = 0.05;
@@ -52,7 +52,7 @@ hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 lenhdx = length(hdx);
 nbin = 4;
 if nbin==4
-    len_frame = 1000;
+    len_frame = 600;
 elseif nbin==7
     len_frame = 1050;
 end
@@ -346,8 +346,12 @@ para.kernel_stm = kernel2;
 para.kernel_co = kernel1;
 para.psth.stm_null = mean(fr1(stmsign_n2, 1:length(time)),1);
 para.psth.stm_pref = mean(fr1(stmsign_p2, 1:length(time)),1);
+para.psth.stm_null_adaptation = compute_adaptation(para.psth.stm_null, offset, len_frame);
+para.psth.stm_pref_adaptation = compute_adaptation(para.psth.stm_pref, offset, len_frame);
 para.psth.ch_pref = mean(fr1(ch==1, 1:length(time)),1);
 para.psth.ch_null = mean(fr1(ch==0, 1:length(time)),1);
+para.psth.cp = rocN(mean(fr1(ch==1, offset+1:offset+len_frame),2),...
+    mean(fr1(ch==0, offset+1:offset+len_frame),2));
 para.amp = amp;
 para.amp_h = amph;
 para.amp_l = ampl;
@@ -402,6 +406,10 @@ err = std(ampr,[],1);
 err0 = std(ampr0,[],1);
 err1 = std(ampr1,[],1);
 
+function adap = compute_adaptation(mpsth, offset, stmoff)
+psth = mpsth - mean(mpsth(1:offset));
+adap = psth(stmoff)/max(psth);
+
 function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
 if nargin < 3
         error('x, y_bottom, y_top are required as input arguments')
@@ -419,3 +427,29 @@ set(h,'EdgeColor','none')
 if ~isnan(transparency)
         alpha(transparency)
 end
+
+function [cp] = rocN(x,y)
+N = 100;
+[m n] = size(x);
+x = reshape(x,1,m*n);
+[m n] = size(y);
+y = reshape(y,1,m*n);
+
+zlo = min([min(x(:)) min(y(:))]);
+zhi = max([max(x(:)) max(y(:))]);
+z = linspace(zlo,zhi,N);
+fa = zeros(1,N);	% allocate the vector
+hit = zeros(1,N);
+for i = 1:N
+  fa(N-i+1) = sum(y > z(i));
+  hit(N-i+1) = sum(x > z(i));
+end
+[m,ny] = size(y);
+fa = fa/ny;
+[m,nx] = size(x);
+hit = hit/nx;
+fa(1) = 0;
+hit(1) = 0;
+fa(N) = 1;
+hit(N) = 1;
+cp = trapz(fa,hit);
