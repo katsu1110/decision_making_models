@@ -26,6 +26,7 @@ bias = 0;
 % sensitivity = 10/threshold;
 len_tr = 5000;
 len_frame = 100;
+stmstrength = 0; % 0 or 0.12 <= x < 0.5
 
 %% parameters of interest
 % add Gaussian noise
@@ -35,7 +36,11 @@ noise = 0;
 weights = ones(1, len_frame);
 
 % decision boundry
-db = 100;
+db = inf;
+
+% taking into acount decision time
+dt_flag = 0;
+dtweight = 1;
 
 % leak 
 leak = 0;
@@ -52,6 +57,12 @@ resample_flag = 0;
 j = 1;              
 while  j<= length(varargin)
     switch varargin{j}
+        case 'ntr'
+            len_tr = varargin{j+1};
+            j = j + 2;
+        case 'stmstrength'
+            stmstrength = varargin{j+1};
+            j = j + 2;
         case 'noise'
             noise = varargin{j+1};
             j = j + 2;
@@ -63,6 +74,12 @@ while  j<= length(varargin)
             j = j + 2;
         case 'leak'
             leak = varargin{j+1};
+            j = j + 2;
+        case 'dt'
+            dt_flag = 1;
+            j = j + 1;
+        case 'dtw'
+            dtweight = varargin{j+1};
             j = j + 2;
         case 'nbin'
             nbin = varargin{j+1};            
@@ -76,6 +93,13 @@ while  j<= length(varargin)
     end
 end
 
+pd = ones(length(hdx),1);
+if stmstrength>0  
+    pd = pd*(1 - 2*stmstrength)/7;
+    pd(2) = stmstrength;
+    pd(8) = stmstrength;
+end 
+
 disp('----------------------------------------------------------------')
 disp(['noise: ' num2str(noise) ', weightes: ' num2str((weights(end)-weights(1))/len_frame) ', DB:' num2str(db) ', leak:' num2str(leak)])
 
@@ -86,7 +110,7 @@ leak = leak./(linspace(1,len_frame,len_frame)/len_frame);
 rng(19891220);
 
 % generate dynamic stimulus sequence with the 0% signal
-stm = datasample(hdx, len_tr*len_frame, 'Replace',true);
+stm = datasample(hdx, len_tr*len_frame, 'Replace', true, 'Weights', pd);
 stm = reshape(stm, [len_tr, len_frame]);
 
 % generate DVs
@@ -110,7 +134,7 @@ for c = 1:len_tr
     % sensory weighting
     idvs(c,:) = dvs(c,:).*weights;
     
-    % (leaky) integration
+    % nonlinear (leaky) integration
     for f = 2:len_frame        
         idvs(c,f) = idvs(c,f-1)*(1 - leak(f)) + dvs(c,f);
     end
@@ -127,10 +151,10 @@ end
 disp(['The % trials reaching the DB: ' num2str(100*sum(dbreach==1)/len_tr)])
 
 % median split of DVs
-if db==100
-    conf = abs(idvs(:,end));
+if dt_flag==1
+    conf = (2/pi)*atan(abs(idvs(:,end))./(dtweight*dt/len_frame));
 else
-    conf = (2/pi)*atan(abs(idvs(:,end))./(dt/len_frame));
+    conf = abs(idvs(:,end));
 end
 
 % % add noise on confidence judgement

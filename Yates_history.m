@@ -7,7 +7,7 @@ function [para] = Yates_history(varargin)
 close all;
 
 % input arguments
-nneuron = 10;
+nneuron = 1;
 len_tr = 5000;
 tmax = 400;
 tau = 30;
@@ -58,7 +58,7 @@ hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 % hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
 nbin = 4;
 if nbin==4
-    len_frame = 1000;
+    len_frame = 600;
 elseif nbin==7
     len_frame = 1050;
 end
@@ -90,7 +90,7 @@ para.kernel_co = kernel1;
 
 %%
 % kernel for the history term
-ht = 0:50;
+ht = 0:10;
 kernel3 = log(1+ht);
 kernel3 = normalize(kernel3, -0.018, 0);
 % tau3 = 10;
@@ -287,14 +287,14 @@ disp('spikes generated')
 % reshape struct & add noise
 for n = 1:nneuron
     for i = 1:len_tr
-%         para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:);
-%         para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:);
-        para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:)...
-            + normrnd(median(para.tr(i).spk1(n,:)),median(para.tr(i).spk1(n,:))*0.01,...
-            size(para.tr(i).spk1(n,:)));
-        para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:)...
-            + normrnd(median(para.tr(i).spk2(n,:)),median(para.tr(i).spk2(n,:))*0.01,...
-            size(para.tr(i).spk2(n,:)));
+        para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:);
+        para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:);
+%         para.neuron(n).spk1(i,:) = para.tr(i).spk1(n,:)...
+%             + normrnd(median(para.tr(i).spk1(n,:)),median(para.tr(i).spk1(n,:))*0.01,...
+%             size(para.tr(i).spk1(n,:)));
+%         para.neuron(n).spk2(i,:) = para.tr(i).spk2(n,:)...
+%             + normrnd(median(para.tr(i).spk2(n,:)),median(para.tr(i).spk2(n,:))*0.01,...
+%             size(para.tr(i).spk2(n,:)));
     end
 end
 
