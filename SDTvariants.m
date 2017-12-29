@@ -36,7 +36,7 @@ noise = 0;
 weights = ones(1, len_frame);
 
 % decision boundry
-db = inf;
+db = 100;
 
 % taking into acount decision time
 dt_flag = 0;
@@ -134,7 +134,7 @@ for c = 1:len_tr
     % sensory weighting
     idvs(c,:) = dvs(c,:).*weights;
     
-    % nonlinear (leaky) integration
+    % (leaky) integration
     for f = 2:len_frame        
         idvs(c,f) = idvs(c,f-1)*(1 - leak(f)) + dvs(c,f);
     end
@@ -148,7 +148,8 @@ for c = 1:len_tr
     end
 end
 
-disp(['The % trials reaching the DB: ' num2str(100*sum(dbreach==1)/len_tr)])
+nreach0 = 100*sum(dbreach==1)/len_tr;
+disp(['The % trials reaching the DB: ' num2str(nreach0)])
 
 % median split of DVs
 if dt_flag==1
@@ -161,9 +162,11 @@ end
 % conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
 
 med = median(conf);
-disp([num2str(100*sum(dbreach==1 & conf > med)/sum(conf > med)) ...
+nreach1 = 100*sum(dbreach==1 & conf < med)/sum(conf < med);
+nreach2 = 100*sum(dbreach==1 & conf > med)/sum(conf > med);
+disp([num2str(nreach2) ...
     '% trials reached DB in high confidence, '...
-    num2str(100*sum(dbreach==1 & conf < med)/sum(conf < med))...
+    num2str(nreach1)...
     '% trials reached DB in low confidence '])
 
 % choice 
@@ -216,7 +219,8 @@ end
 
 % output argumant
 para = struct('trKernel', tkernel, 'trKernel_highconf', tkernel_h, 'trKernel_lowconf', tkernel_l, ...
-    'amplitude', amp, 'amplitude_highconf', amph, 'amplitude_lowconf', ampl);
+    'amplitude', amp, 'amplitude_highconf', amph, 'amplitude_lowconf', ampl,...
+    'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1);
 
 % visualization
 if plot_flag==1
@@ -281,7 +285,8 @@ if plot_flag==1
     title(cfix)
 
     subplot(1,3,3)
-    nom = mean([amph, ampl]);
+%     nom = mean([amph, ampl]);
+    nom = max(amp);
     if resample_flag==1
         fill_between(1:nbin, (ampl - errl)/nom, (ampl + errl)/nom, g)
         hold on;

@@ -550,7 +550,8 @@ if plot_flag==1
     % visualize kernel amplitude
 %     subplot(2,4,8)
     subplot(2,4,8)
-    nom = mean([amph, ampl]);
+%     nom = mean([amph, ampl]);
+    nom = max(amp);
     plot(1:nbin, amp/nom, '-r', 'linewidth', 2)
     hold on;
     plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
@@ -653,13 +654,14 @@ if plot_flag==1
     caxis(cfix)
 
     subplot(1,3,3)
+    %     nom = mean([amph, ampl]);
+    nom = max(amp);
     if resample_flag==1
         fill_between(1:nbin, (amph-errh)/nom, (amph+errh)/nom, y)
         hold on;
         fill_between(1:nbin, (ampl-errl)/nom, (ampl+errl)/nom, g)
         hold on;
     end   
-    nom = mean([amph, ampl]);
     plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
     hold on;
     plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
