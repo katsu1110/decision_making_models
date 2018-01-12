@@ -1,4 +1,4 @@
-function [dv, evidence] = Evidence_Accumulation2(acc,e,ntime,ntrial,stim,model)
+function [dv, evidence] = Evidence_Accumulation(acc,e,ntime,ntrial,stim,model)
 
 % function dv = Evidence_Accumulation(acc,ntime,ntrial)
 % returns decision-variable for simulations of zero-signal case
