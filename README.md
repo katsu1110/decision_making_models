@@ -12,7 +12,6 @@ Note that these model implementations are generally simplified and not strictly 
   - Case of 2AFC (Vincent, Journal of Mathematical Psychology 2015) ...in the forked repository 'bayesian2afc'
   - Probablistic inference by neural sampling (Ralf et al., Neuron 2016) ... in the forked repository 'sampling_decision'
   - Bayesian sampling (Sanborn & Chater, Trends in Cognitive Sciences 2016) ...script from the original paper ('Sanborn_Charter.r')
-  - Bayesian diffusion model (Deneve, Frontiers in Neuroscience 2012) ...ongoing in 'SimpleBayesianSampling.m'
 - Stimulus-to-MT model (Yates et al., Nature Neuroscience 2017) ...implemented in 'Yates_simple_example.m' & 'Yates_history.m'
 - Attractor model
   - nonlinear integration (general attractor behavior) ...implemented in 'Evidence_Accumulation.m' & 'plot_EvidenceAccumulation.m'
