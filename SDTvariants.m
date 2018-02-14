@@ -94,10 +94,16 @@ while  j<= length(varargin)
 end
 
 pd = ones(length(hdx),1);
+% % both sides
+% if stmstrength>0  
+%     pd = pd*(1 - 2*stmstrength)/7;
+%     pd(2) = stmstrength;
+%     pd(8) = stmstrength;
+% end 
+% one side
 if stmstrength>0  
-    pd = pd*(1 - 2*stmstrength)/7;
+    pd = pd*(1 - stmstrength)/8;
     pd(2) = stmstrength;
-    pd(8) = stmstrength;
 end 
 
 disp('----------------------------------------------------------------')
@@ -119,6 +125,10 @@ dvs = stm;
 for s = 1:length(hdx)
     dvs(stm==hdx(s)) = kernel(s);
 end
+
+% noise level in the stimulus
+noisestm = std(stm(:));
+noiseidv = std(dvs(:));
 
 % add Gaussian noise
 sensoryrep = dvs;
@@ -216,11 +226,17 @@ for a = 1:nbin
     amph(a) = dot(tkernel_h(:,a), avkernel);
     ampl(a) = dot(tkernel_l(:,a), avkernel);
 end
+if mean(isnan(amph))
+    amph = 2*amp - ampl;
+elseif mean(isnan(ampl))
+    ampl = 2*amp - amph;
+end
 
 % output argumant
 para = struct('trKernel', tkernel, 'trKernel_highconf', tkernel_h, 'trKernel_lowconf', tkernel_l, ...
     'amplitude', amp, 'amplitude_highconf', amph, 'amplitude_lowconf', ampl,...
-    'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1);
+    'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
+    'noisestm',noisestm,'noiseidv',noiseidv);
 
 % visualization
 if plot_flag==1
