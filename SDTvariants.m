@@ -8,6 +8,7 @@ function [para] = SDTvariants(varargin)
 % 'leak' ... float; leaky integration
 % 'nbin' ... the number of time bins to compute the time-resolved
 % psychophysical kernel
+% 'stmstrength' ... signal strength 0 - 50 (%)
 % 'resample' ... perform resampling (bootstrap) to get error bars for the
 % kernel amplitude
 % 'plot' ... plot the results
@@ -26,7 +27,7 @@ bias = 0;
 % sensitivity = 10/threshold;
 len_tr = 5000;
 len_frame = 100;
-stmstrength = 0; % 0 or 0.12 <= x < 0.5
+stmstrength = 0; % 0 percent signal
 
 %% parameters of interest
 % add Gaussian noise
@@ -93,18 +94,10 @@ while  j<= length(varargin)
     end
 end
 
-pd = ones(length(hdx),1);
-% % both sides
-% if stmstrength>0  
-%     pd = pd*(1 - 2*stmstrength)/7;
-%     pd(2) = stmstrength;
-%     pd(8) = stmstrength;
-% end 
+restper = 100 - stmstrength;
+pd = (restper/length(hdx))*ones(length(hdx),1);
 % one side
-if stmstrength>0  
-    pd = pd*(1 - stmstrength)/8;
-    pd(2) = stmstrength;
-end 
+pd(3) = stmstrength + pd(3);
 
 disp('----------------------------------------------------------------')
 disp(['noise: ' num2str(noise) ', weightes: ' num2str((weights(end)-weights(1))/len_frame) ', DB:' num2str(db) ', leak:' num2str(leak)])
@@ -235,6 +228,7 @@ end
 % output argumant
 para = struct('trKernel', tkernel, 'trKernel_highconf', tkernel_h, 'trKernel_lowconf', tkernel_l, ...
     'amplitude', amp, 'amplitude_highconf', amph, 'amplitude_lowconf', ampl,...
+    'choice_bias', sum(ch==0)/sum(ch==1), ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
     'noisestm',noisestm,'noiseidv',noiseidv);
 
