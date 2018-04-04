@@ -9,12 +9,13 @@ close all;
 % input arguments
 nneuron = 1;
 len_tr = 5000;
-tmax = 400;
-tau = 30;
-kernelgain_s = 0.05;
-kernelgain_c = 0.05;
-offset_gain = 1;
+tmax = 300; %was 400
+tau = 50; %was 30
+kernelgain_s = 0.05; %was 0.05
+kernelgain_c = 0.025; %was 0.05
+offset_gain = 1.5; %was 1
 stm_gain = 0.3;
+logreg_flag = 0;
 plot_flag = 1;
 resample_flag = 0;
 j = 1;              
@@ -41,6 +42,9 @@ while  j <= length(varargin)
         case 'stm_gain'
             stm_gain = varargin{j+1};            
              j = j + 2;
+        case 'logreg'
+            logreg_flag = 1;
+            j = j + 1;
         case 'resample'
             resample_flag = 1;
             j = j + 1;
@@ -498,9 +502,11 @@ tkernel_l = nan(lenhdx, nbin);
 amp = nan(1, nbin);
 amph = nan(1, nbin);
 ampl = nan(1, nbin);
+stmbin = nan(size(stm, 1), nbin);
 
 begin = offset+1;
 for a = 1:nbin
+    stmbin(:, a) = mean(stm(:, begin:begin+frameperbin-1), 2);
 %     disp(['bin ' num2str(a) ': ' num2str(begin - offset) ' to ' num2str(begin+frameperbin-1-offset)])
     [tkernel(:,a)] = getKernel(hdx, stm(:, begin:begin+frameperbin-1), ch);
     [tkernel_h(:,a)] = getKernel(hdx, stm(conf > med, begin:begin+frameperbin-1), ch(conf > med));
@@ -509,31 +515,29 @@ for a = 1:nbin
     begin = begin + frameperbin;
 end
 tapk = mean(tkernel,2)';
-for a = 1:nbin
-%     amp(a) = tkernel(:,a)'*mean(tkernel,2);
-%     amph(a) = tkernel_h(:,a)'*mean(tkernel_h,2);
-%     ampl(a) = tkernel_l(:,a)'* mean(tkernel_l,2);
-    amp(a) = tapk*tkernel(:,a);
-    amph(a) = tapk*tkernel_h(:,a);
-    ampl(a) = tapk*tkernel_l(:,a);
+if logreg_flag==0
+    % image classification
+    pka_method = 'image classification';
+    for a = 1:nbin
+        amp(a) = tapk*tkernel(:,a);
+        amph(a) = tapk*tkernel_h(:,a);
+        ampl(a) = tapk*tkernel_l(:,a);
+    end
+else
+    % logistic regression
+    pka_method = 'logistic regression';
+    amp = glmfit(stmbin, ch, ...
+        'binomial', 'link', 'logit', 'constant', 'on');
+    amph = glmfit(stmbin(conf > med, :), ch(conf > med), ...
+        'binomial', 'link', 'logit', 'constant', 'on');
+    ampl = glmfit(stmbin(conf < med, :), ch(conf < med), ...
+        'binomial', 'link', 'logit', 'constant', 'on');
+    amp = amp(2:end); amph = amph(2:end); ampl = ampl(2:end);
 end
-
+para.pka_method = pka_method;
 para.amp_h = amph;
 para.amp_l = ampl;
 para.amp_diff = amph - ampl;
-
-%%
-% kernel amplitude using logistic regression
-hdxmat = zeros(len_tr, nbin);
-begin = offset + 1;
-for n = 1:nbin
-    hdxmat(:, n) = median(stm(:, begin:begin+frameperbin-1), 2);
-    begin = begin + frameperbin;
-end
-w = logregPK(hdxmat, ch);
-wh = logregPK(hdxmat(conf > med, :), ch(conf > med));
-wl = logregPK(hdxmat(conf < med, :), ch(conf < med));
-wn = mean([wh, wl]);
 
 %%
 if plot_flag==1
@@ -564,7 +568,7 @@ if plot_flag==1
     hold on;
     plot(1:nbin, wl/wn, '--', 'color', g, 'linewidth', 2)
     xlim([0.5 nbin + 0.5])
-    ylabel('kernel amplitude')
+    ylabel({'kernel amplitude', ['(' pka_method ')']})
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
     % cosmetics
@@ -620,13 +624,14 @@ if plot_flag==1
     nom = mean(amp);
     if resample_flag==1
         repeat = 1000;
-        [err, errl, errh] = resamplePK(hdx, stm, ch, offset, nbin, frameperbin, conf, med, repeat);
+        [err, errl, errh] = resamplePK(hdx, stm, ch, offset, nbin, ...
+            frameperbin, conf, med, repeat, logreg_flag);
         fill_between(1:nbin, (amp-err)/nom, (amp+err)/nom, [0 0 0])
         hold on;
     end
     plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
     xlim([0.5 nbin + 0.5])
-    ylabel('kernel amplitude')
+    ylabel({'kernel amplitude', ['(' pka_method ')']})
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
     
     figure(11);
@@ -666,7 +671,7 @@ if plot_flag==1
     hold on;
     plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
     xlim([0.5 nbin + 0.5])
-    ylabel('kernel amplitude')
+    ylabel({'kernel amplitude', ['(' pka_method ')']})
     title(cfix)
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')   
@@ -705,13 +710,6 @@ end
 % compute PK for 0% stimulus
 pk0 = mean(svmat(ch==0,:),1) - mean(svmat(ch==1,:),1);
 
-function w = logregPK(hdxmat, ch)
-w = size(hdxmat, 2);
-for i = 1:size(hdxmat, 2)
-    b = glmfit(hdxmat(:, i), ch, 'binomial', 'link', 'logit', 'constant', 'on');
-    w(i) = b(2);
-end
-
 function [normalized_vector] = normalize(v, newmin, newmax)
 
 a = (newmax - newmin)/(max(max(v)) - min(min(v)));
@@ -719,12 +717,13 @@ b = newmax - max(max(v))*a;
 
 normalized_vector = a.*v + b;
 
-function [err, err0, err1] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, conf, med, repeat)
+function [err, err0, err1] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, conf, med, repeat, logreg_flag)
 conf0 = find(conf < med);
 conf1 = find(conf > med);
 ampr = zeros(repeat, nbin);
 ampr0 = zeros(repeat, nbin);
 ampr1 = zeros(repeat, nbin);
+hdxmatbin = nan(size(hdxmat, 1), nbin);
 for r = 1:repeat
     rtr0 = datasample(conf0, length(conf0));
     rtr1 = datasample(conf1, length(conf1));
@@ -734,20 +733,32 @@ for r = 1:repeat
     tkernel1 = nan(length(disval), nbin);
     begin = offset+1;   
     for a = 1:nbin
+        if r==1
+            hdxmatbin(:, n) = mean(hdxmat(:, begin:begin+frameperbin-1), 2);
+        end
         [tkernel(:,a)] = getKernel(disval, hdxmat(rtr, begin:begin+frameperbin-1), ch(rtr));   
         [tkernel0(:,a)] = getKernel(disval, hdxmat(rtr0, begin:begin+frameperbin-1), ch(rtr0));  
         [tkernel1(:,a)] = getKernel(disval, hdxmat(rtr1, begin:begin+frameperbin-1), ch(rtr1));  
         begin = begin + frameperbin;
     end
     tapk = mean(tkernel,2)';
-    for a = 1:nbin
-        ampr(r,a) = tapk*tkernel(:,a);
-        ampr0(r,a) = tapk*tkernel0(:,a);
-        ampr1(r,a) = tapk*tkernel1(:,a);
-%         ampr(r,a) = mean(tkernel,2)'*tkernel(:,a);
-%         ampr0(r,a) = mean(tkernel0,2)'*tkernel0(:,a);
-%         ampr1(r,a) = mean(tkernel1,2)'*tkernel1(:,a);
-    end
+    if logreg_flag==0
+        % image classification
+        for a = 1:nbin
+            ampr(r,a) = tapk*tkernel(:,a);
+            ampr0(r,a) = tapk*tkernel0(:,a);
+            ampr1(r,a) = tapk*tkernel1(:,a);
+        end
+    else
+        % logistic regression
+        ampr = glmfit(hdxmatbin(rtr,:), ch, ...
+            'binomial', 'link', 'logit', 'constant', 'on');
+        ampr0 = glmfit(hdxmatbin(rtr0, :), ch(rtr0), ...
+            'binomial', 'link', 'logit', 'constant', 'on');
+        ampr1 = glmfit(hdxmatbin(rtr1, :), ch(rtr1), ...
+            'binomial', 'link', 'logit', 'constant', 'on');
+        amp = amp(2:end); ampr0 = ampr0(2:end); ampr1 = ampr1(2:end);
+    end        
 end
 err = std(ampr,[],1);
 err0 = std(ampr0,[],1);

@@ -9,6 +9,9 @@ function [para] = SDTvariants(varargin)
 % 'nbin' ... the number of time bins to compute the time-resolved
 % psychophysical kernel
 % 'stmstrength' ... signal strength 0 - 50 (%)
+% 'logreg' ... to compute psychophysical kernel amplitude: 
+%              0, conventional image classification
+%              1, logistic regression
 % 'resample' ... perform resampling (bootstrap) to get error bars for the
 % kernel amplitude
 % 'plot' ... plot the results
@@ -49,6 +52,9 @@ leak = 0;
 % number of bin
 nbin = 4;
 
+% logistic regression or image classification
+logreg_flag = 0;
+
 % figure
 plot_flag = 0;
 
@@ -85,6 +91,9 @@ while  j<= length(varargin)
         case 'nbin'
             nbin = varargin{j+1};            
              j = j + 2;
+        case 'logreg'
+            logreg_flag = 1;
+            j = j + 1;
         case 'resample'
             resample_flag = 1;
             j = j + 1;
@@ -190,8 +199,10 @@ tkernel_h = nan(length(hdx), nbin);
 tkernel_l = nan(length(hdx), nbin);
 begin = 1;
 frameperbin = floor(len_frame/nbin);
+stmbin = nan(size(stm, 1), nbin);
 for a = 1:nbin
     % time-binned PK
+    stmbin(:, a) = mean(stm(:,begin:begin+frameperbin-1), 2);
     pk0 = getKernel(stm(:,begin:begin+frameperbin-1), ch);
     pkh = getKernel(stm(conf > med, begin:begin+frameperbin-1), ch(conf > med));
     pkl = getKernel(stm(conf < med, begin:begin+frameperbin-1), ch(conf < med));
@@ -206,18 +217,28 @@ avkernel = getKernel(stm, ch);
 % avkernel_h = getKernel(stm(conf > med,:), ch(conf > med));
 % avkernel_l = getKernel(stm(conf < med,:), ch(conf < med));
 
+% psychophysical kernel amplitude
 amp = nan(1,nbin);
 amph = nan(1,nbin);
 ampl = nan(1,nbin);
-for a = 1:nbin
-    % amplitude of the PK
-%     amp(a) = dot(tkernel(:,a), mean(tkernel,2));
-%     amph(a) = dot(tkernel_h(:,a), mean(tkernel_h,2));
-%     ampl(a) = dot(tkernel_l(:,a), mean(tkernel_l,2));
-
-    amp(a) = dot(tkernel(:,a), avkernel);
-    amph(a) = dot(tkernel_h(:,a), avkernel);
-    ampl(a) = dot(tkernel_l(:,a), avkernel);
+if logreg_flag==0
+    % image classification
+    pka_method = 'image classification';
+    for a = 1:nbin
+        amp(a) = dot(tkernel(:,a), avkernel);
+        amph(a) = dot(tkernel_h(:,a), avkernel);
+        ampl(a) = dot(tkernel_l(:,a), avkernel);
+    end
+else
+    % logistic regression (intercept included to capture a bias)
+    pka_method = 'logistic regression';
+    amp = glmfit(stmbin, ch, ...
+        'binomial', 'link', 'logit', 'constant', 'on');
+    amph = glmfit(stmbin(conf > med, :), ch(conf > med), ...
+        'binomial', 'link', 'logit', 'constant', 'on');
+    ampl = glmfit(stmbin(conf < med, :), ch(conf < med), ...
+        'binomial', 'link', 'logit', 'constant', 'on');
+    amp = amp(2:end); amph = amph(2:end); ampl = ampl(2:end);
 end
 if mean(isnan(amph))
     amph = 2*amp - ampl;
@@ -227,7 +248,7 @@ end
 
 % output argumant
 para = struct('trKernel', tkernel, 'trKernel_highconf', tkernel_h, 'trKernel_lowconf', tkernel_l, ...
-    'amplitude', amp, 'amplitude_highconf', amph, 'amplitude_lowconf', ampl,...
+    'pka_method', pka_method,'amplitude', amp, 'amplitude_highconf', amph, 'amplitude_lowconf', ampl,...
     'choice_bias', sum(ch==0)/sum(ch==1), ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
     'noisestm',noisestm,'noiseidv',noiseidv);
@@ -256,7 +277,8 @@ if plot_flag==1
     nom = mean(amp);
     if resample_flag==1
         repeat = 1000;
-        [err, errl, errh] = resamplePK(stm, ch, nbin, frameperbin, conf, med, repeat);
+        [err, errl, errh] = resamplePK(stm, ch, nbin, frameperbin, conf, ...
+            med, repeat, logreg_flag);
         fill_between(1:nbin, (amp - err)/nom, (amp + err)/nom, [0 0 0])
         hold on;       
         plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
@@ -311,7 +333,7 @@ if plot_flag==1
         plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
     end    
     xlim([0.5 nbin + 0.5])
-    ylabel('kernel amplitude')
+    ylabel({'kernel amplitude', ['(' pka_method ')']})
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
@@ -333,7 +355,7 @@ end
 % compute PK for 0% stimulus
 pk0 = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
 
-function [err, err0, err1] = resamplePK(hdxmat, ch, nbin, frameperbin, conf, med, repeat)
+function [err, err0, err1] = resamplePK(hdxmat, ch, nbin, frameperbin, conf, med, repeat, logreg_flag)
 conf0 = find(conf < med);
 conf1 = find(conf > med);
 disval = unique(hdxmat);
@@ -341,6 +363,7 @@ len_d = length(disval);
 ampr = nan(repeat, nbin);
 ampr0 = nan(repeat, nbin);
 ampr1 = nan(repeat, nbin);
+hdxmatbin = nan(size(hdxmat, 1), nbin);
 for r = 1:repeat
     rtr0 = datasample(conf0, length(conf0))';
     rtr1 = datasample(conf1, length(conf1))';
@@ -350,16 +373,31 @@ for r = 1:repeat
     tkernel1 = nan(len_d, nbin);
     begin = 1;
     for n = 1:nbin
-        tkernel(:,n) = getKernel(hdxmat(rtr,begin:begin+frameperbin-1), ch(rtr));
-        tkernel0(:,n) = getKernel(hdxmat(rtr0,begin:begin+frameperbin-1), ch(rtr0));
-        tkernel1(:,n) = getKernel(hdxmat(rtr1,begin:begin+frameperbin-1), ch(rtr1));
+        if r==1
+            hdxmatbin(:,n) = mean(hdxmat(:, begin:begin+frameperbin-1), 2);
+        end
+        tkernel(:,n) = getKernel(hdxmat(rtr, begin:begin+frameperbin-1), ch(rtr));
+        tkernel0(:,n) = getKernel(hdxmat(rtr0, begin:begin+frameperbin-1), ch(rtr0));
+        tkernel1(:,n) = getKernel(hdxmat(rtr1, begin:begin+frameperbin-1), ch(rtr1));
         begin = begin + frameperbin;
     end
     tapk = getKernel(hdxmat(rtr,:), ch(rtr));
-    for n = 1:nbin
-        ampr(r,n) = dot(tkernel(:,n), tapk);
-        ampr0(r,n) = dot(tkernel0(:,n), tapk);
-        ampr1(r,n) = dot(tkernel1(:,n), tapk);
+    if logreg_flag==0
+        % image classification
+        for n = 1:nbin
+            ampr(r,n) = dot(tkernel(:,n), tapk);
+            ampr0(r,n) = dot(tkernel0(:,n), tapk);
+            ampr1(r,n) = dot(tkernel1(:,n), tapk);
+        end
+    else
+        % logistic regression
+        ampr = glmfit(hdxmatbin(rtr,:), ch, ...
+            'binomial', 'link', 'logit', 'constant', 'on');
+        ampr0 = glmfit(hdxmatbin(rtr0, :), ch(rtr0), ...
+            'binomial', 'link', 'logit', 'constant', 'on');
+        ampr1 = glmfit(hdxmatbin(rtr1, :), ch(rtr1), ...
+            'binomial', 'link', 'logit', 'constant', 'on');
+        amp = amp(2:end); ampr0 = ampr0(2:end); ampr1 = ampr1(2:end);
     end
 end
 err = std(ampr, [], 1);
