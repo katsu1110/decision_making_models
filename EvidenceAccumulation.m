@@ -29,14 +29,9 @@ if nargin<8, logreg_flag=1; end % logistic regression to compute PKA
 [dv, stm] = Simulate_Evidence_Accumulation(acc,e,ntime,ntrial,stim,model);
 stm = stm';
 
-% visualization
 nrow = size(dv, 2);
 ncol = 5;
-binsize = ntime;
-% yellow and green
-y = [0.9576    0.7285    0.2285];
-g = [0.1059    0.4706    0.2157];
-    
+binsize = ntime;    
 pka = nan(3*nrow, ntime);
 c = 1;
 %%
@@ -55,6 +50,10 @@ end
 %%
 % visualize
 if plot_flag==1
+    % yellow and green
+    y = [0.9576    0.7285    0.2285];
+    g = [0.1059    0.4706    0.2157];
+
     close all;
     h = figure;
     rtr = randi(size(dv, 3), 100, 1);
@@ -128,8 +127,10 @@ if logreg_flag==0
     pka = mean(binmat(ch==1,:),1) - mean(binmat(ch==0,:), 1);
 else
     % logistic regression
-    pka = glmfit(binmat, ch, 'binomial', 'link', 'logit', 'constant', 'on');
-    pka = pka(2:end)';
+%     pka = glmfit(binmat, ch, 'binomial', 'link', 'logit', 'constant', 'on');
+%     pka = pka(2:end)';
+    [B, FitInfo] = lassoglm(binmat, ch, 'binomial', 'CV', 3);
+    pka = B(:, FitInfo.IndexMinDeviance);
 end
 
 function [idx_conf] = conf_split(dv, acc)
@@ -147,13 +148,6 @@ function [dv, evidence] = Simulate_Evidence_Accumulation(acc,e,ntime,ntrial,stim
 %               if isempty(rt), rt=size(dv,1); end
 %      corresponding choice: 
 %               choice = sign(dv(rt,idx_acc,idx_trial));
-
-if nargin<1, acc=[0 0.01 -0.01]; end % [perfect, accelerate, deccelerate]
-if nargin<2, e=1; end % average unsigned evidence per frame
-if nargin<3, ntime=100; end % 100 time steps
-if nargin<4, ntrial=1000; end % number of simulated trials
-if nargin<5, stim='normal'; end % stimulus to be simulated (see below)
-if nargin<6, model='linear'; end % model to be simulated (see below)
 
 dv=zeros(ntime, length(acc),ntrial); % decision variable
 switch stim
