@@ -526,13 +526,19 @@ if logreg_flag==0
 else
     % logistic regression
     pka_method = 'logistic regression';
-    amp = glmfit(stmbin, ch, ...
-        'binomial', 'link', 'logit', 'constant', 'on');
-    amph = glmfit(stmbin(conf > med, :), ch(conf > med), ...
-        'binomial', 'link', 'logit', 'constant', 'on');
-    ampl = glmfit(stmbin(conf < med, :), ch(conf < med), ...
-        'binomial', 'link', 'logit', 'constant', 'on');
-    amp = amp(2:end); amph = amph(2:end); ampl = ampl(2:end);
+%     amp = glmfit(stmbin, ch, ...
+%         'binomial', 'link', 'logit', 'constant', 'on');
+%     amph = glmfit(stmbin(conf > med, :), ch(conf > med), ...
+%         'binomial', 'link', 'logit', 'constant', 'on');
+%     ampl = glmfit(stmbin(conf < med, :), ch(conf < med), ...
+%         'binomial', 'link', 'logit', 'constant', 'on');
+%     amp = amp(2:end); amph = amph(2:end); ampl = ampl(2:end);
+    B = lassoglm(stmbin, ch, 'binomial');
+    amp = B(:, 1);
+    B = lassoglm(stmbin(conf > med, :), ch(conf > med, :), 'binomial');
+    amph = B(:, 1);
+    B = lassoglm(stmbin(conf < med, :), ch(conf < med, :), 'binomial');
+    ampl = B(:, 1);
 end
 para.pka_method = pka_method;
 para.amp_h = amph;
@@ -751,13 +757,19 @@ for r = 1:repeat
         end
     else
         % logistic regression
-        ampr = glmfit(hdxmatbin(rtr,:), ch, ...
-            'binomial', 'link', 'logit', 'constant', 'on');
-        ampr0 = glmfit(hdxmatbin(rtr0, :), ch(rtr0), ...
-            'binomial', 'link', 'logit', 'constant', 'on');
-        ampr1 = glmfit(hdxmatbin(rtr1, :), ch(rtr1), ...
-            'binomial', 'link', 'logit', 'constant', 'on');
-        amp = amp(2:end); ampr0 = ampr0(2:end); ampr1 = ampr1(2:end);
+%         ampr = glmfit(hdxmatbin(rtr,:), ch, ...
+%             'binomial', 'link', 'logit', 'constant', 'on');
+%         ampr0 = glmfit(hdxmatbin(rtr0, :), ch(rtr0), ...
+%             'binomial', 'link', 'logit', 'constant', 'on');
+%         ampr1 = glmfit(hdxmatbin(rtr1, :), ch(rtr1), ...
+%             'binomial', 'link', 'logit', 'constant', 'on');
+%         amp = amp(2:end); ampr0 = ampr0(2:end); ampr1 = ampr1(2:end);
+        B = lassoglm(hdxmatbin(rtr,:), ch, 'binomial');
+        ampr = B(:, 1);
+        B = lassoglm(hdxmatbin(rtr0,:), ch(rtr0), 'binomial');
+        ampr0 = B(:, 1);
+        B = lassoglm(hdxmatbin(rtr1,:), ch(rtr1), 'binomial');
+        ampr1 = B(:, 1);
     end        
 end
 err = std(ampr,[],1);

@@ -127,10 +127,10 @@ if logreg_flag==0
     pka = mean(binmat(ch==1,:),1) - mean(binmat(ch==0,:), 1);
 else
     % logistic regression
-%     pka = glmfit(binmat, ch, 'binomial', 'link', 'logit', 'constant', 'on');
+%     pka = glmfit2(binmat, ch, 'binomial', 'link', 'logit', 'constant', 'on');
 %     pka = pka(2:end)';
-    [B, FitInfo] = lassoglm(binmat, ch, 'binomial', 'CV', 3);
-    pka = B(:, FitInfo.IndexMinDeviance);
+    B = lassoglm(binmat, ch, 'binomial');
+    pka = B(:, 1);
 end
 
 function [idx_conf] = conf_split(dv, acc)
