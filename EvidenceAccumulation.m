@@ -40,10 +40,8 @@ for n = 1:nrow
     ch = getCh(dv, n);
     pka(c, :) = getPK(stm, ch, binsize, logreg_flag);
     idx_conf = conf_split(dv, n);
-    pka1 = getPK(stm(idx_conf==0, :), ch(idx_conf==0), binsize, logreg_flag);
-    pka2 = getPK(stm(idx_conf==1, :), ch(idx_conf==1), binsize, logreg_flag);
-    pka(c+1, :) = pka1;
-    pka(c+2, :) = pka2;
+    pka(c+1, :) = getPK(stm(idx_conf==0, :), ch(idx_conf==0), binsize, logreg_flag);
+    pka(c+2, :) = getPK(stm(idx_conf==1, :), ch(idx_conf==1), binsize, logreg_flag);
     c = c + 3;
 end
 
@@ -127,10 +125,10 @@ if logreg_flag==0
     pka = mean(binmat(ch==1,:),1) - mean(binmat(ch==0,:), 1);
 else
     % logistic regression
-%     pka = glmfit2(binmat, ch, 'binomial', 'link', 'logit', 'constant', 'on');
+%     pka = glmfit(binmat, ch, 'binomial', 'link', 'logit', 'constant', 'on');
 %     pka = pka(2:end)';
     B = lassoglm(binmat, ch, 'binomial');
-    pka = B(:, 1);
+    pka = B(:, 1)';
 end
 
 function [idx_conf] = conf_split(dv, acc)

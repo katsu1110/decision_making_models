@@ -51,7 +51,7 @@ cf = abs(dv);
 acc = 1*(ch==sign(stm));
 
 figure;
-plot(cf,acc, '.')
+plot(cf,acc*1, '.')
 
 % 
 % % generate trial-by-trial DV =================
