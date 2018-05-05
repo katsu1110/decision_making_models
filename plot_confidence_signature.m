@@ -4,7 +4,9 @@ function plot_confidence_signature(confidence, accuracy, stimulus)
 % 2) psychometric functions split by confidence (median split)
 % 3) confidence as a function of signal strength (correct and incorrect)
 %
-% each input should have trials x 1.
+% Simulated results can be obtained from 'confidence_signature.m'
+% Each input should have 1 x trials.
+% ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 close all;
 h = figure;
