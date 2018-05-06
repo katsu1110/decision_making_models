@@ -8,7 +8,7 @@ function [para] = SDTvariants(varargin)
 % 'leak' ... float; leaky integration
 % 'nbin' ... the number of time bins to compute the time-resolved
 % psychophysical kernel
-% 'stmstrength' ... signal strength 0 - 50 (%)
+% 'stmstrength' ... signal strength 0 - 50 (%)  
 % 'logreg' ... to compute psychophysical kernel amplitude: 
 %              0, conventional image classification
 %              1, logistic regression
