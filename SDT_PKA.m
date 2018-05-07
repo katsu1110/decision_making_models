@@ -5,8 +5,7 @@ function para = SDT_PKA(varargin)
 %
 % INPUT:
 % 'db' ... float; decision boundary (for Integration-to-Bound model)
-% 'dt' ... confidence based on decision time as well as decision variable
-% 'dtw' ... float; weight of decision time over decision variable for confidence
+% 'dt' ... float; contribution of decision time to confidence
 % 'leak' ... float; the degree of leakage (for Leaky-integration model)
 % 'ntr' ... int; the number of trials (default is 10^6). The half is
 %            automatically assigned as 0% signal trials. 
@@ -19,7 +18,7 @@ function para = SDT_PKA(varargin)
 %              1, image classification (stm for ch1 - stm for ch2)
 %              2, logistic regression
 % 'stmdist' ... type of stimulus distribution:  'uniform' or 'Gaussian'
-% 'conftype' ... 'sdt' (Hangya et al., 2016) or 'Bayes' (Adler & Ma, 2017)
+% 'conftype' ... confidence type: 'sdt' (Hangya et al., 2016) or 'Bayes' (Adler & Ma, 2017)
 % 'overlap'... overlap (0 or >1) between P(s|C=-1) and P(s|C=1). Default is 0.
 % 'repeat' ... the number of repeats for resampling (bootstrap)
 % 'plot' ... plot the results
@@ -42,8 +41,7 @@ weights = ones(1, nframe);
 db = 10000; % this is essentially infinite
 
 % taking into acount decision time
-dt_flag = 0;
-dtweight = 1;
+dtw = 0;
 
 % leak 
 leak = 0;
@@ -88,8 +86,8 @@ while  j<= length(varargin)
             leak = varargin{j+1};
             j = j + 2;
         case 'dt'
-            dt_flag = 1;
-            j = j + 1;
+            dtw = varargin{j+1};
+            j = j + 2;
         case 'dtw'
             dtweight = varargin{j+1};
             j = j + 2;
@@ -117,7 +115,7 @@ while  j<= length(varargin)
     end
 end
 
-% normalize leak parameter
+% normalize the leak parameter
 leak = leak./(linspace(1,nframe,nframe)/nframe);
 
 % evidence strength
@@ -188,8 +186,8 @@ disp(['The % trials reaching the DB: ' num2str(nreach0)])
     dc, stmMean, stmSD);
 
 % influence of decision time on confidence
-if dt_flag==1
-    conf = (2/pi)*atan(conf./(dtweight*dt/nframe));
+if dtw > 0
+    conf = 0.5 + (1/pi)*atan(2*(conf-0.5)./(dtw*dt/nframe));
 end
 
 % accuracy
@@ -217,7 +215,7 @@ end
 
 % output argumant
 para = struct('category', C, 'assigned_stm', ss, 'stm', stm, 'choice', ch, ...
-    'accuracy', acc, 'confidence', conf, 'pka_method', pkmethod, 'pka', pka_all, ...
+    'accuracy', acc, 'confidence', conf, 'decisiontime',dt,'pka_method', pkmethod, 'pka', pka_all, ...
     'pka_highconf', pka_hc, 'pka_lowconf', pka_lc,...
     'choice_bias', sum(ch==0)/sum(ch==1), ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
@@ -234,7 +232,7 @@ if plot_flag==1
     subplot(1,2,1)
     nom = mean(pka_all);
     if repeat > 0
-        [err, errl, errh] = resamplePK(ss, stm, ch, nbin, repeat, pkmethod);
+        [err, errl, errh] = resamplePK(ss, stm, ch, conf, nbin, repeat, pkmethod);
         errorbar(1:nbin, pka_all/nom, err/nom, '-', 'color', [0 0 0], 'linewidth', 2)
     else
         plot(1:nbin, pka_all/nom, '-', 'color', [0 0 0], 'linewidth', 2)
@@ -360,7 +358,7 @@ pka_lc = glmfit(stm(cf < med, :), ch(cf < med), ...
     'binomial', 'link', 'logit', 'constant', 'on');
 pka_all = pka_all(2:end); pka_hc = pka_hc(2:end); pka_lc = pka_lc(2:end);
 
-function [err, err0, err1] = resamplePK(ss, stm, ch, nbin, repeat, pkmethod)
+function [err, err0, err1] = resamplePK(ss, stm, ch, cf, nbin, repeat, pkmethod)
 ampr = nan(repeat, nbin);
 ampr0 = nan(repeat, nbin);
 ampr1 = nan(repeat, nbin);
