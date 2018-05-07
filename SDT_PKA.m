@@ -29,7 +29,7 @@ function para = SDT_PKA(varargin)
 % ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 % pre-set parameters
-ntr = 10^5;
+ntr = 10^4;
 nframe = 20;
 
 % pooling noise (internal noise)
@@ -304,6 +304,7 @@ function [pka_all, pka_hc, pka_lc] = PKA_hn(ss, stm, ch, cf, nbin)
 stm = stm(ss==0,:);
 ch = ch(ss==0);
 cf = cf(ss==0);
+stm = round(stm);
 disval = unique(stm);
 nd = length(disval);
 med = median(cf);
