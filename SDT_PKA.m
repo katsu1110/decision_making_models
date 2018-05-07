@@ -8,7 +8,8 @@ function para = SDT_PKA(varargin)
 % 'dt' ... confidence based on decision time as well as decision variable
 % 'dtw' ... float; weight of decision time over decision variable for confidence
 % 'leak' ... float; the degree of leakage (for Leaky-integration model)
-% 'ntr' ... int; the number of trials (default is 10^6)
+% 'ntr' ... int; the number of trials (default is 10^6). The half is
+%            automatically assigned as 0% signal trials. 
 % 'nbin' ... int; the number of time bins to compute the time-resolved PKA 
 % 'noise' ... float; pooling noise (internal noise). 22.8 is default. 
 % 'weights' ... vector with the same length of nframe (20 in default)
@@ -38,7 +39,7 @@ noise = 22.8;
 weights = ones(1, nframe);
 
 % decision boundry
-db = 100; % this is essentially infinite
+db = 10000; % this is essentially infinite
 
 % taking into acount decision time
 dt_flag = 0;
@@ -120,7 +121,7 @@ end
 leak = leak./(linspace(1,nframe,nframe)/nframe);
 
 % evidence strength
-dc = -overlap:1:50;
+dc = -overlap:5:50;
 
 % stimulus distribution
 stmMean = 25;
@@ -137,21 +138,26 @@ end
 
 % true categories
 disp(['simulating ' num2str(ntr) ' trials...'])
-C = dataspka_lce([-1 1], ntr);
+C = datasample([-1 1], ntr)';
 
 % signed stimulus
 stm = C;
-stm(C==1) = dataspka_lce(dc, sum(C==1), 'Weights', pc1);
-stm(C==-1) = dataspka_lce(-dc, sum(C==-1), 'Weights', pc2);
+stm(C==1) = datasample(dc, sum(C==1), 'Weights', pc1);
+stm(C==-1) = datasample(-dc, sum(C==-1), 'Weights', pc2);
+
+% half of them are 0% signal trials
+stm(randi(ntr, round(ntr/2), 1)) = 0;
 ss = stm;
-stm = repmat(ss, 1, nframe);
-stm = arrayfun(@(x) normrnd(x, stmSD/2), stm);
+
+% trials x frames
+stm = repmat(stm, 1, nframe);
+stm = arrayfun(@(x) normrnd(x, 2*stmSD), stm);
 
 % instantaneous noisy measurements (decision variable)
 idv = arrayfun(@(x) normrnd(x, noise), stm);
 
 % sensory weighting
-idv = idv.*rempat(weights, ntr, 1);
+idv = idv.*repmat(weights, ntr, 1);
 
 % noise levels (experiment & internal)
 noisestm = std(stm(:));
@@ -178,7 +184,7 @@ nreach0 = 100*sum(dbreach==1)/ntr;
 disp(['The % trials reaching the DB: ' num2str(nreach0)])
 
 % confidence & choice
-[conf, ch] = compute_confidence(dv(:,end), noise, conftype, stmdist,...
+[conf, ch] = compute_confidence(dv(:,end), (nframe/2)*noise, conftype, stmdist,...
     dc, stmMean, stmSD);
 
 % influence of decision time on confidence
@@ -202,7 +208,7 @@ disp([num2str(sum(ch==0)) ' near-choices, ' num2str(sum(ch==1)) ' far-choices'])
 disp('----------------------------------------------------------------')
 
 % psychophysical kernel pka_lcitude (PKA)
-[pka_all, pka_hc, pka_lc] = getPKA(stm, ch, conf, nbin, pkmethod);
+[pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, conf, nbin, pkmethod);
 if mean(isnan(pka_hc))
     pka_hc = 2*pka_all - pka_lc;
 elseif mean(isnan(pka_lc))
@@ -211,7 +217,7 @@ end
 
 % output argumant
 para = struct('category', C, 'assigned_stm', ss, 'stm', stm, 'choice', ch, ...
-    'accuracy', acc, 'confidence', cf, 'pka_method', pkamethod, 'pka', pka_all, ...
+    'accuracy', acc, 'confidence', conf, 'pka_method', pkmethod, 'pka', pka_all, ...
     'pka_highconf', pka_hc, 'pka_lowconf', pka_lc,...
     'choice_bias', sum(ch==0)/sum(ch==1), ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
@@ -226,39 +232,33 @@ if plot_flag==1
     close all;
     h = figure;
     subplot(1,2,1)
-    nom = mean(amp);
+    nom = mean(pka_all);
     if repeat > 0
-        [err, errl, errh] = resamplePK(stm, ch, nbin, frameperbin, conf, ...
-            med, repeat, logreg_flag);
-        fill_between(1:nbin, (amp - err)/nom, (amp + err)/nom, [0 0 0])
-        hold on;       
-        plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
+        [err, errl, errh] = resamplePK(ss, stm, ch, nbin, repeat, pkmethod);
+        errorbar(1:nbin, pka_all/nom, err/nom, '-', 'color', [0 0 0], 'linewidth', 2)
     else
-        plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
+        plot(1:nbin, pka_all/nom, '-', 'color', [0 0 0], 'linewidth', 2)
     end    
     xlim([0.5 nbin + 0.5])
-    ylabel('kernel pka_lcitude')
+    xlabel('time bin')
+    ylabel({'normalized', 'PKA'})
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
     
     subplot(1,2,2)
 %     nom = mean([pka_hc, pka_lc]);
-    nom = max(amp);
+    nom = max(pka_all);
     if repeat > 0
-        fill_between(1:nbin, (pka_lc - errl)/nom, (pka_lc + errl)/nom, g)
-        hold on;
-        plot(1:nbin, pka_lc/nom, '-', 'color', g, 'linewidth', 2)
-        hold on;
-        fill_between(1:nbin, (pka_hc - errh)/nom, (pka_hc + errh)/nom, y)
-        hold on;       
-        plot(1:nbin, pka_hc/nom, '-', 'color', y, 'linewidth', 2)
+        errorbar(1:nbin, pka_lc/nom, errl/nom, '-', 'color', g, 'linewidth', 2)
+        hold on;     
+        errorbar(1:nbin, pka_hc/nom, errh/nom, '-', 'color', y, 'linewidth', 2)
     else
         plot(1:nbin, pka_lc/nom, '-', 'color', g, 'linewidth', 2)
         hold on;
         plot(1:nbin, pka_hc/nom, '-', 'color', y, 'linewidth', 2)
     end    
     xlim([0.5 nbin + 0.5])
-    ylabel({'kernel pka_lcitude', ['(' pka_method ')']})
+    xlabel('time bin')
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
@@ -275,13 +275,13 @@ for a = 1:nbin
     begin = begin + frameperbin;
 end
 
-function [pka_all, pka_hc, pka_lc] = getPKA(stm, ch, cf, nbin, pkmethod)
+function [pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, cf, nbin, pkmethod)
 % compute PKA in a specified method
 switch pkmethod
     case 0 % Nienborg & Cumming, 2009
-        [pka_all, pka_hc, pka_lc] = PKA_hn(stm, ch, cf, nbin);
+        [pka_all, pka_hc, pka_lc] = PKA_hn(ss, stm, ch, cf, nbin);
     case 1 % image classification
-        [pka_all, pka_hc, pka_lc] = PKA_ic(stm, ch, cf, nbin);
+        [pka_all, pka_hc, pka_lc] = PKA_ic(ss, stm, ch, cf, nbin);
     case 2 % logistic regression
         [pka_all, pka_hc, pka_lc] = PKA_logreg(stm, ch, cf, nbin);
 end
@@ -299,7 +299,11 @@ end
 % compute PK for 0% stimulus
 pk = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
 
-function [pka_all, pka_hc, pka_lc] = PKA_hn(stm, ch, cf, nbin)
+function [pka_all, pka_hc, pka_lc] = PKA_hn(ss, stm, ch, cf, nbin)
+% only 0% signal trials
+stm = stm(ss==0,:);
+ch = ch(ss==0);
+cf = cf(ss==0);
 disval = unique(stm);
 nd = length(disval);
 med = median(cf);
@@ -319,7 +323,7 @@ for a = 1:nbin
     begin = begin + frameperbin;
 end
 % PKA
-pk = getKernel(stm, ch);
+pk = getKernel(stm, disval, ch);
 pka_all = nan(1,nbin);
 pka_hc = nan(1,nbin);
 pka_lc = nan(1,nbin);
@@ -329,12 +333,16 @@ for a = 1:nbin
     pka_lc(a) = dot(tkernel_l(:,a), pk);
 end
 
-function [pka_all, pka_hc, pka_lc] = PKA_ic(stm, ch, cf, nbin)
+function [pka_all, pka_hc, pka_lc] = PKA_ic(ss, stm, ch, cf, nbin)
+% only 0% signal trials
+stm = stm(ss==0,:);
+ch = ch(ss==0);
+cf = cf(ss==0);
 % image classification to compute PKA
-pka_all = stm(ch==1,:) - stm(ch==0,:);
+pka_all = mean(stm(ch==1,:), 1) - mean(stm(ch==0,:), 1);
 med = median(cf);
-pka_hc = stm(ch==1 & cf > med,:) - stm(ch==0 & cf > med,:);
-pka_lc = stm(ch==1 & cf < med,:) - stm(ch==0 & cf < med,:);
+pka_hc = mean(stm(ch==1 & cf > med,:), 1) - mean(stm(ch==0 & cf > med,:), 1);
+pka_lc = mean(stm(ch==1 & cf < med,:), 1) - mean(stm(ch==0 & cf < med,:), 1);
 pka_all = binstm(pka_all, nbin);
 pka_hc = binstm(pka_hc, nbin);
 pka_lc = binstm(pka_lc, nbin);
@@ -351,69 +359,15 @@ pka_lc = glmfit(stm(cf < med, :), ch(cf < med), ...
     'binomial', 'link', 'logit', 'constant', 'on');
 pka_all = pka_all(2:end); pka_hc = pka_hc(2:end); pka_lc = pka_lc(2:end);
 
-function [err, err0, err1] = resamplePK(stm, ch, nbin, frameperbin, conf, med, repeat, logreg_flag)
-conf0 = find(conf < med);
-conf1 = find(conf > med);
-disval = unique(stm);
-len_d = length(disval);
+function [err, err0, err1] = resamplePK(ss, stm, ch, nbin, repeat, pkmethod)
 ampr = nan(repeat, nbin);
 ampr0 = nan(repeat, nbin);
 ampr1 = nan(repeat, nbin);
-stmbin = nan(size(stm, 1), nbin);
+ntr = length(ch);
 for r = 1:repeat
-    rtr0 = dataspka_lce(conf0, length(conf0))';
-    rtr1 = dataspka_lce(conf1, length(conf1))';
-    rtr = [rtr0, rtr1];
-    tkernel = nan(len_d, nbin);
-    tkernel0 = nan(len_d, nbin);
-    tkernel1 = nan(len_d, nbin);
-    begin = 1;
-    for n = 1:nbin
-        if r==1
-            stmbin(:,n) = mean(stm(:, begin:begin+frameperbin-1), 2);
-        end
-        tkernel(:,n) = getKernel(stm(rtr, begin:begin+frameperbin-1), ch(rtr));
-        tkernel0(:,n) = getKernel(stm(rtr0, begin:begin+frameperbin-1), ch(rtr0));
-        tkernel1(:,n) = getKernel(stm(rtr1, begin:begin+frameperbin-1), ch(rtr1));
-        begin = begin + frameperbin;
-    end
-    tapk = getKernel(stm(rtr,:), ch(rtr));
-    if logreg_flag==0
-        % image classification
-        for n = 1:nbin
-            ampr(r,n) = dot(tkernel(:,n), tapk);
-            ampr0(r,n) = dot(tkernel0(:,n), tapk);
-            ampr1(r,n) = dot(tkernel1(:,n), tapk);
-        end
-    else
-        % logistic regression
-        ampr = glmfit(stmbin(rtr,:), ch, ...
-            'binomial', 'link', 'logit', 'constant', 'on');
-        ampr0 = glmfit(stmbin(rtr0, :), ch(rtr0), ...
-            'binomial', 'link', 'logit', 'constant', 'on');
-        ampr1 = glmfit(stmbin(rtr1, :), ch(rtr1), ...
-            'binomial', 'link', 'logit', 'constant', 'on');
-        amp = amp(2:end); ampr0 = ampr0(2:end); ampr1 = ampr1(2:end);
-    end
+    rtr = randi(ntr, ntr, 1);
+    [ampr(r,:), ampr1(r,:), ampr0(r,:)] = getPKA(ss(rtr), stm(rtr,:), ch(rtr), cf(rtr), nbin, pkmethod);
 end
 err = std(ampr, [], 1);
 err0 = std(ampr0, [], 1);
 err1 = std(ampr1, [], 1);
-
-function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
-if nargin < 3
-        error('x, y_bottom, y_top are required as input arguments')
-elseif nargin==3
-        maincolor = [0 0 0];
-        transparency = [];
-elseif nargin==4
-        transparency = [];
-end
-
-edgecolor = maincolor + (1 - maincolor)*0.55;
-
-h = fill([x fliplr(x)],[y_bottom fliplr(y_top)],edgecolor);
-set(h,'EdgeColor','none')
-if ~isnan(transparency)
-        alpha(transparency)
-end

@@ -42,7 +42,7 @@ switch lower(conftype)
                 likelihood2 = normpdf(dv, -stmMean, sumSD);
         end
         cf = likelihood1./(likelihood1 + likelihood2);
-        ch = ones(1, ntr);
+        ch = ones(size(dv,1), 1);
         ch(cf < 0.5) = -1;
         cf(cf < 0.5) = 1 - cf(cf < 0.5);
 end

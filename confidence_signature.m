@@ -45,7 +45,7 @@ end
 
 % true categories
 disp(['simulating ' num2str(ntr) ' trials...'])
-C = datasample([-1 1], ntr);
+C = datasample([-1 1], ntr)';
 
 % signed stimulus
 stm = C;
