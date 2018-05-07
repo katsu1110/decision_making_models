@@ -6,7 +6,10 @@ function para = SDT_PKA(varargin)
 % INPUT:
 % 'db' ... float; decision boundary (for Integration-to-Bound model)
 % 'dt' ... float; contribution of decision time to confidence
-% 'leak' ... float; the degree of leakage (for Leaky-integration model)
+% 'acceleration' ... float; acceleration parameter 
+%  (negative: leaky-integration, 0: perfect integration, positive: attractor)
+% 'link' ... link function for acceleration parameter: 'linear' or
+% 'sigmoid'
 % 'ntr' ... int; the number of trials (default is 10^6). The half is
 %            automatically assigned as 0% signal trials. 
 % 'nbin' ... int; the number of time bins to compute the time-resolved PKA 
@@ -21,7 +24,7 @@ function para = SDT_PKA(varargin)
 % 'conftype' ... confidence type: 'sdt' (Hangya et al., 2016) or 'Bayes' (Adler & Ma, 2017)
 % 'overlap'... overlap (0 or >1) between P(s|C=-1) and P(s|C=1). Default is 0.
 % 'repeat' ... the number of repeats for resampling (bootstrap)
-% 'plot' ... plot the results
+% 'plot' ... plot PKA
 %
 % OUTPUT:
 % matlab structure including relevant information
@@ -43,8 +46,11 @@ db = 10000; % this is essentially infinite
 % taking into acount decision time
 dtw = 0;
 
-% leak 
-leak = 0;
+% acceleration parameter
+acceleration = 0;
+
+% link function for acceleration parameter
+link = 'linear';
 
 % number of bin
 nbin = 4;
@@ -82,14 +88,14 @@ while  j<= length(varargin)
         case 'db'
             db = varargin{j+1};
             j = j + 2;
-        case 'leak'
-            leak = varargin{j+1};
+        case 'acceleration'
+            acceleration = varargin{j+1};
+            j = j + 2;
+        case 'link'
+            link = varargin{j+1};
             j = j + 2;
         case 'dt'
             dtw = varargin{j+1};
-            j = j + 2;
-        case 'dtw'
-            dtweight = varargin{j+1};
             j = j + 2;
         case 'nbin'
             nbin = varargin{j+1};            
@@ -114,9 +120,6 @@ while  j<= length(varargin)
             j = j + 1;
     end
 end
-
-% normalize the leak parameter
-leak = leak./(linspace(1,nframe,nframe)/nframe);
 
 % evidence strength
 dc = -overlap:5:50;
@@ -164,7 +167,7 @@ noiseidv = std(idv(:));
 % (leaky) integration
 dv = idv;
 for f = 2:nframe
-    dv(:,f) = dv(:,f-1).*(1 - leak(f)) + dv(:,f);
+    dv(:,f) = dv(:,f-1) + acceleration*linkf(dv(:,f-1), link) + dv(:,f);
 end
 
 % integration-to-bound and decision time
@@ -246,15 +249,18 @@ if plot_flag==1
     subplot(1,2,2)
 %     nom = mean([pka_hc, pka_lc]);
     nom = max(pka_all);
+    l = zeros(1,2);
     if repeat > 0
-        errorbar(1:nbin, pka_lc/nom, errl/nom, '-', 'color', g, 'linewidth', 2)
+        l(2) = errorbar(1:nbin, pka_lc/nom, errl/nom, '-', 'color', g, 'linewidth', 2);
         hold on;     
-        errorbar(1:nbin, pka_hc/nom, errh/nom, '-', 'color', y, 'linewidth', 2)
+        l(1) = errorbar(1:nbin, pka_hc/nom, errh/nom, '-', 'color', y, 'linewidth', 2);
     else
-        plot(1:nbin, pka_lc/nom, '-', 'color', g, 'linewidth', 2)
+        l(2) = plot(1:nbin, pka_lc/nom, '-', 'color', g, 'linewidth', 2);
         hold on;
-        plot(1:nbin, pka_hc/nom, '-', 'color', y, 'linewidth', 2)
+        l(1) = plot(1:nbin, pka_hc/nom, '-', 'color', y, 'linewidth', 2);
     end    
+    legend(l, 'high confidence', 'low confidence', 'location', 'best')
+    legend('boxoff')
     xlim([0.5 nbin + 0.5])
     xlabel('time bin')
     set(gca, 'XTick', 1:nbin)
@@ -263,7 +269,17 @@ end
     
 
 %% subfunctions
+function y = linkf(x, link)
+% link function for acceleration parameter
+switch link
+    case 'linear'
+        y = x;
+    case 'sigmoid'
+        y = tanh(x);
+end
+
 function stmbin = binstm(stm, nbin)
+% bin the stimulus metrix along with time
 nframe = size(stm, 2);
 begin = 1;
 frameperbin = floor(nframe/nbin);
@@ -302,6 +318,7 @@ function [pka_all, pka_hc, pka_lc] = PKA_hn(ss, stm, ch, cf, nbin)
 stm = stm(ss==0,:);
 ch = ch(ss==0);
 cf = cf(ss==0);
+% time-averaged PK in each time bin
 stm = round(stm);
 disval = unique(stm);
 nd = length(disval);
@@ -359,6 +376,7 @@ pka_lc = glmfit(stm(cf < med, :), ch(cf < med), ...
 pka_all = pka_all(2:end); pka_hc = pka_hc(2:end); pka_lc = pka_lc(2:end);
 
 function [err, err0, err1] = resamplePK(ss, stm, ch, cf, nbin, repeat, pkmethod)
+% resampling procedure
 ampr = nan(repeat, nbin);
 ampr0 = nan(repeat, nbin);
 ampr1 = nan(repeat, nbin);
