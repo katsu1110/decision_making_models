@@ -1,7 +1,7 @@
 function para = SDT_PKA(varargin)
 %% 
 % simulation of Signal detection theory (SDT) based models to compute
-% psychophysical kernel pka_lcitude (PKA) in a 2AFC task
+% psychophysical kernel amplitude (PKA) in a 2AFC task
 %
 % INPUT:
 % 'db' ... float; decision boundary (for Integration-to-Bound model)
@@ -14,8 +14,9 @@ function para = SDT_PKA(varargin)
 %            automatically assigned as 0% signal trials. 
 % 'nbin' ... int; the number of time bins to compute the time-resolved PKA 
 % 'noise' ... float; pooling noise (internal noise). 22.8 is default. 
+% 'cfnoise' ... float; noise on confidence judgement. 0 is default. 
 % 'weights' ... vector with the same length of nframe (20 in default)
-% 'pkmethod' ... method to compute psychophysical kernel pka_lcitude: 
+% 'pkmethod' ... method to compute psychophysical kernel amplitude: 
 %              0, weights as occurences of frames (Nienborg &
 %              Cumming, 2009). In default.
 %              1, image classification (stm for ch1 - stm for ch2)
@@ -28,6 +29,14 @@ function para = SDT_PKA(varargin)
 %
 % OUTPUT:
 % matlab structure including relevant information
+%
+% EXAMPLE:
+% para = SDT_PKA('db',140, 'plot')
+%
+% NOTE:
+% Unit of decision variable here is arbitrary. Formally it needs to be normalized (divided) by
+% its standard deviation (para.noiseidv)
+%
 % ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 % pre-set parameters
@@ -36,6 +45,9 @@ nframe = 20;
 
 % pooling noise (internal noise)
 noise = 22.8;
+
+% confidence noise
+cfnoise = 0;
 
 % weights on sensory time-course
 weights = ones(1, nframe);
@@ -81,6 +93,9 @@ while  j<= length(varargin)
             j = j + 2;
         case 'noise'
             noise = varargin{j+1};
+            j = j + 2;
+      case 'cfnoise'
+            cfnoise = varargin{j+1};
             j = j + 2;
         case 'weights' 
             weights = varargin{j+1};
@@ -193,6 +208,9 @@ if dtw > 0
     conf = 0.5 + (1/pi)*atan(2*(conf-0.5)./(dtw*dt/nframe));
 end
 
+% noise on confidence judgement
+conf = normrnd(0, cfnoise, size(conf));
+
 % accuracy
 acc = 1*(ch==C);
 
@@ -208,7 +226,7 @@ ch(ch==-1) = 0;
 disp([num2str(sum(ch==0)) ' near-choices, ' num2str(sum(ch==1)) ' far-choices'])
 disp('----------------------------------------------------------------')
 
-% psychophysical kernel pka_lcitude (PKA)
+% psychophysical kernel amplitude (PKA)
 [pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, conf, nbin, pkmethod);
 if mean(isnan(pka_hc))
     pka_hc = 2*pka_all - pka_lc;

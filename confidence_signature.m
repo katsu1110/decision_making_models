@@ -1,8 +1,8 @@
-function [cf, acc, stm] = confidence_signature(noise, ntr, conftype, stmdist, overlap)
+function [cf, acc, stm] = confidence_signature(ntr, noise, conftype, stmdist, overlap)
 %% simulation of the signatures of decision confidence 
 % INPUT: 
-% noise ... internal noise: default is 22.8
 % ntr ... the number of simulated trials
+% noise ... internal noise: default is 22.8
 % conftype ... 'sdt' (Hangya et al., 2016) or 'Bayes' (Adler & Ma, 2017) 
 % stmdist ... type of stimulus distribution:  'uniform' or 'Gaussian'
 % overlap ... overlap (0 or >1) between P(s|C=-1) and P(s|C=1). Default is 0. 
@@ -11,18 +11,20 @@ function [cf, acc, stm] = confidence_signature(noise, ntr, conftype, stmdist, ov
 %         acc (accuracy: 0, error; 1, correct)
 %         stm (signed stimulus)
 %
-% Monte Carlo simulation after Hangya et al., 2016, Adler & Ma, 2017 etc
+% Monte Carlo simulation after Hangya et al., 2016; Adler & Ma, 2017 etc
 %
-% EXAMPLE: simply run '[cf, acc, stm] = confidence_signature;
+% EXAMPLE: 
+% [cf, acc, stm] = confidence_signature(100000000);
 %
-% To plot the results, use 'plot_confidence_signature.m'
+% To plot the results, use 'plot_confidence_signature.m' by
+% "plot_confidence_signature(cf, acc, stm)"
 % +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 close all;
 
 % deal with inputs
-if nargin < 1; noise = 22.8; end
-if nargin < 2; ntr = 10^6; end
+if nargin < 1; ntr = 10^6; end
+if nargin < 2; noise = 22.8; end
 if nargin < 3; conftype = 'sdt'; end
 if nargin < 4; stmdist = 'uniform'; end
 if nargin < 5; overlap = 0; end
