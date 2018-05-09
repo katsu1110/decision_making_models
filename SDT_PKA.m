@@ -6,6 +6,7 @@ function para = SDT_PKA(varargin)
 % INPUT:
 % 'db' ... float; decision boundary (for Integration-to-Bound model)
 % 'dt' ... float; contribution of decision time to confidence
+% 'race' ... race model (2 integrators)
 % 'acceleration' ... float; acceleration parameter 
 %  (negative: leaky-integration, 0: perfect integration, positive: attractor)
 % 'link' ... link function for acceleration parameter: 'linear' or
@@ -34,14 +35,17 @@ function para = SDT_PKA(varargin)
 % para = SDT_PKA('db',140, 'plot')
 %
 % NOTE:
-% Unit of decision variable here is arbitrary. Formally it needs to be normalized (divided) by
-% its standard deviation (para.noiseidv)
+% Unit of decision bound here is arbitrary. Formally it needs to be normalized (divided) by
+% the standard deviation of instantaneous decision variables (para.noiseidv)
 %
 % ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 % pre-set parameters
-ntr = 10^4;
+ntr = 10^5;
 nframe = 20;
+
+% race model
+race_flag = 0;
 
 % pooling noise (internal noise)
 noise = 22.8;
@@ -94,9 +98,12 @@ while  j<= length(varargin)
         case 'noise'
             noise = varargin{j+1};
             j = j + 2;
-      case 'cfnoise'
+        case 'cfnoise'
             cfnoise = varargin{j+1};
             j = j + 2;
+        case 'race'
+            race_flag = 1;
+            j = j + 1;
         case 'weights' 
             weights = varargin{j+1};
             j = j + 2;
@@ -179,23 +186,55 @@ idv = idv.*repmat(weights, ntr, 1);
 noisestm = std(stm(:));
 noiseidv = std(idv(:));
 
-% (leaky) integration
-dv = idv;
-for f = 2:nframe
-    dv(:,f) = dv(:,f-1) + acceleration*linkf(dv(:,f-1), link) + dv(:,f);
-end
-
-% integration-to-bound and decision time
+% race model
 dt = nframe*ones(ntr,1);
 dbreach = zeros(ntr, 1);
-for n = 1:ntr   
-    idx = find(abs(dv(n,:)) >= db, 1, 'first');
-    if ~isempty(idx)
-        dv(n, idx:end) = dv(n, idx);
-        dt(n) = idx;
-        dbreach(n) = 1;
+if race_flag == 1
+    % two accumulators
+    idv1 = idv; idv2 = idv; 
+    idv1(idv1 < 0) = 0;
+    idv2(idv2 > 0) = 0;
+
+    % evidence integration
+    dv1 = idv1; dv2 = idv2;
+    for f = 2:nframe
+        dv1(:,f) = dv1(:,f-1) + acceleration*linkf(dv1(:,f-1), link) + dv1(:,f);
+        dv2(:,f) = dv2(:,f-1) + acceleration*linkf(dv2(:,f-1), link) + dv2(:,f);
+    end
+
+    % integration-to-bound and decision time
+    for n = 1:ntr   
+        idx1 = find(abs(dv1(n,:)) >= db, 1, 'first');
+        idx2 = find(abs(dv2(n,:)) >= db, 1, 'first');
+        if ~isempty(idx1) || ~isempty(idx2)
+            idx = min([idx1, idx2]);
+            dv1(n, idx:end) = dv1(n, idx);
+            dv2(n, idx:end) = dv2(n, idx);
+            dt(n) = idx;
+            dbreach(n) = 1;
+        end
+    end
+    dv = dv1 + dv2;
+else % one integrator
+    % evidence integration
+    dv = idv;
+    for f = 2:nframe
+        dv(:,f) = dv(:,f-1) + acceleration*linkf(dv(:,f-1), link) + dv(:,f);
+    end
+
+    % integration-to-bound and decision time
+    dt = nframe*ones(ntr,1);
+    dbreach = zeros(ntr, 1);
+    for n = 1:ntr   
+        idx = find(abs(dv(n,:)) >= db, 1, 'first');
+        if ~isempty(idx)
+            dv(n, idx:end) = dv(n, idx);
+            dt(n) = idx;
+            dbreach(n) = 1;
+        end
     end
 end
+
 nreach0 = 100*sum(dbreach==1)/ntr;
 disp(['The % trials reaching the DB: ' num2str(nreach0)])
 
@@ -209,7 +248,7 @@ if dtw > 0
 end
 
 % noise on confidence judgement
-conf = normrnd(0, cfnoise, size(conf));
+conf = conf + normrnd(0, cfnoise, size(conf));
 
 % accuracy
 acc = 1*(ch==C);
@@ -241,6 +280,11 @@ para = struct('category', C, 'assigned_stm', ss, 'stm', stm, 'choice', ch, ...
     'choice_bias', sum(ch==0)/sum(ch==1), ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
     'noisestm',noisestm,'noiseidv',noiseidv);
+if race_flag == 1
+    para.dv = {dv1, dv2, dv};
+else
+    para.dv = dv;
+end
 
 % visualization
 if plot_flag==1
@@ -285,8 +329,8 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
     
-
-%% subfunctions
+%%
+%subfunctions
 function y = linkf(x, link)
 % link function for acceleration parameter
 switch link
