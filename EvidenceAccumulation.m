@@ -1,18 +1,24 @@
-function [pka, dv] = EvidenceAccumulation(acc, e, ntime, ntrial, stim, model, plot_flag, logreg_flag)
+function [pka, dv] = EvidenceAccumulation(acc, e, ntime, ntrial, stim, model, plot_flag)
 %%
-% simulate & visualize behavior of the 'Evidence Accumulation' model given by Ralf
-% Haefner @ Rochester Univ.
+% simulate & visualize behavior of the 'Evidence Accumulation' model 
+% given by Ralf Haefner @ Rochester Univ.
 %
 % simulate decision-variable for simulations of zero-signal case
 % INPUT:
-% - acc ... acceleration paramters: [0 0.05 -0.05] 
+% - acc ... acceleration paramters: e.g. [-0.4 0 0.4] 
 % - e ... average unsigned evidence per frame
 % - ntime ... the number of frames: 100
 % - ntrial ... the number of trials: 1000
 % - stim ... 'binary' or 'normal'
 % - model ... 'linear' or 'sigmoid'
 % - plot_flag ... 0 (no figure) or 1 (plot)
-% - logreg_flag ... 0 (image classification) or 1 (logistic regression)
+%
+% OUTPUT: 
+% pka (psychophysical kernel amplitude split by confidence)
+% dv (decision variables)
+%
+% EXAMPLE: 
+% [pka, dv] = EvidenceAccumulation([-0.4 0 0.4], 1, 4, 10000, 'normal', 'sigmoid', 1);
 % +++++++++++++++++++++++++++++++++++++++++++++++++
 
 % preset parameters
@@ -23,29 +29,21 @@ if nargin<4, ntrial=1000; end % number of simulated trials
 if nargin<5, stim='normal'; end % stimulus to be simulated (see below)
 if nargin<6, model='linear'; end % model to be simulated (see below)
 if nargin<7, plot_flag=1; end % visualize or just store data
-if nargin<8, logreg_flag=1; end % logistic regression to compute PKA
 
-% Ralf's function (subfunction)
+% Ralf's function (in subfunction)
 [dv, stm] = Simulate_Evidence_Accumulation(acc,e,ntime,ntrial,stim,model);
 stm = stm';
-
 nrow = size(dv, 2);
 ncol = 5;
 binsize = ntime;    
 pka = nan(3*nrow, ntime);
 c = 1;
-%%
-% store data
 for n = 1:nrow
-    ch = getCh(dv, n);
-    pka(c, :) = getPK(stm, ch, binsize, logreg_flag);
-    idx_conf = conf_split(dv, n);
-    pka(c+1, :) = getPK(stm(idx_conf==0, :), ch(idx_conf==0), binsize, logreg_flag);
-    pka(c+2, :) = getPK(stm(idx_conf==1, :), ch(idx_conf==1), binsize, logreg_flag);
+    [ch, conf] = getCh(dv, n);
+    pka(c:c+2, :) = getPK(stm, ch, conf, binsize);
     c = c + 3;
 end
 
-%%
 % visualize
 if plot_flag==1
     % yellow and green
@@ -57,8 +55,7 @@ if plot_flag==1
     rtr = randi(size(dv, 3), 100, 1);
     c = 1;
     for n = 1:nrow
-    %     h = figure;
-    %     subplot(1,ncol,1)
+        % trial-by-trial decision variable
         subplot(nrow, ncol, n*5 -4)
         imagesc(squeeze(dv(:,n,:))')
         ylabel({['acc = ' num2str(acc(n))], 'trials'})
@@ -67,74 +64,54 @@ if plot_flag==1
         elseif n==nrow
             xlabel('time')
         end
-    %     subplot(1,ncol,2)
+        % randomly selected traces of decision variables
         subplot(nrow, ncol, n*5 -3)
         plot(squeeze(dv(:,n,rtr)))
-    %     subplot(1,ncol,3)
+        xlabel('frames')
+        ylabel('decision variable')
         subplot(nrow, ncol, n*5 -2)
         histogram(squeeze(dv(end, n, :)))
-    %     xlim([-20 20])
-    %     histogram(squeeze(dv(end, n, :)), [-2000:10:2000])
-    %     subplot(1,ncol,4)
+        xlabel('last decision variable')
+        ylabel('trials')
         subplot(nrow, ncol, n*5 -1)
         plot(pka(c,:), '-r')
         xlim([0.5 binsize+0.5])
-        if n == 1
-            ylabel('PKA')
-        elseif n==nrow
-            xlabel('time bin')
-        end
-    %     subplot(1,ncol,5)
+        ylabel('PKA')
+        xlabel('frames')
         subplot(nrow, ncol, n*5)
         plot(pka(c+1,:),'-','color',g)
         hold on;
         plot(pka(c+2,:),'-','color',y)
         xlim([0.5 binsize+0.5])
+        ylabel('PKA')
+        xlabel('frames')
         c = c + 3;
-
-        set(h, 'Name', ['Ralf-Evidence-Accumulation: acc = ' num2str(acc(n))], 'NumberTitle','off')
-
-    %     figure(200);
-    %     delta = (pka2 - pka1)/mean([pka2, pka1]);
-    %     scatter(acc(n), mean(delta(end - floor(ntime/4) + 1:end)), 100, 'filled', 'markerfacecolor','r','markerfacealpha',0.4)
-    %     hold on;
     end
+    set(h, 'Name', ['Ralf-Evidence-Accumulation: acc = ' num2str(acc(n))], 'NumberTitle','off')
 end
-% figure(200);
-% xx = get(gca, 'XLim');
-% plot(xx, [0 0], ':k')
-% xlabel('accleralation')
-% ylabel(['\Delta PKA (high - low conf) at time ' num2str(4)])
 
-
-function ch = getCh(dv, acc)
+% subfunctions
+function [ch, conf] = getCh(dv, acc)
+% trial-by-trial choice & confidence
 ch = sign(squeeze(dv(end, acc, :)));
 ch(ch==0) = datasample([-1 1], sum(ch==0));
 ch(ch==-1) = 0;
+conf = abs(squeeze(dv(end, acc, :)));
 
-function pka = getPK(stm, ch, binsize, logreg_flag)
+function pka = getPK(stm, ch, cf, binsize)
+% get psychophysical kernel amplitude
 frameperbin = floor(size(stm, 2)/binsize);
 begin = 1;
 binmat = nan(size(stm, 1), binsize);
+med = median(cf);
 for b = 1:binsize
     binmat(:,b) = mean(squeeze(stm(:, begin:begin+frameperbin-1)),2);
     begin = begin + frameperbin;
 end
-if logreg_flag==0
-    % image classification
-    pka = mean(binmat(ch==1,:),1) - mean(binmat(ch==0,:), 1);
-else
-    % logistic regression
-%     pka = glmfit(binmat, ch, 'binomial', 'link', 'logit', 'constant', 'on');
-%     pka = pka(2:end)';
-    B = lassoglm(binmat, ch, 'binomial');
-    pka = B(:, 1)';
-end
-
-function [idx_conf] = conf_split(dv, acc)
-conf = abs(squeeze(dv(end, acc, :)));
-med = median(conf);
-idx_conf = 1*(conf > med);
+pka = nan(3, binsize);
+pka(1,:) = mean(binmat(ch==1,:),1) - mean(binmat(ch==0,:), 1);
+pka(2,:) = mean(binmat(ch==1 & cf < med,:),1) - mean(binmat(ch==0 & cf < med,:), 1);
+pka(3,:) = mean(binmat(ch==1 & cf > med,:),1) - mean(binmat(ch==0 & cf > med,:), 1);
     
 function [dv, evidence] = Simulate_Evidence_Accumulation(acc,e,ntime,ntrial,stim,model)
 % returns decision-variable for simulations of zero-signal case
@@ -175,6 +152,3 @@ for i=2:ntime
   end
   dv(i,:,:)=x+evidence_upscale*evidence(i,:);
 end
-
-
-    
