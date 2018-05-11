@@ -13,6 +13,7 @@ kernelgain_s = 0.05; %was 0.05
 kernelgain_c = 0.025; %was 0.05
 offset_gain = 1.5; %was 1
 stm_gain = 0.3;
+nbin = 4;
 logreg_flag = 0;
 plot_flag = 1;
 resample_flag = 0;
@@ -40,6 +41,9 @@ while  j <= length(varargin)
         case 'stm_gain'
             stm_gain = varargin{j+1};               
              j = j + 2;
+        case 'nbin'
+            nbin = varargin{j+1};
+            j = j + 2;
         case 'logreg'
             logreg_flag = 1;
             j = j + 1;
@@ -51,14 +55,16 @@ while  j <= length(varargin)
             j = j + 1;
     end
 end
-hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
-% hdx = 0.3*[-1 -0.5 -0.25 -0.125 0 0.125 0.25 0.5 1];
-nbin = 4;
+
+% the number of frames
 if nbin==4
     len_frame = 600;
 elseif nbin==7
     len_frame = 1050;
 end
+
+% discrete stimuli
+hdx = stm_gain*[-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 1];
 lenhdx = length(hdx);
 hdxlab = cell(1, lenhdx);
 for i = 1:lenhdx
@@ -73,11 +79,12 @@ co = 1*[zeros(1,offset),ones(1,len_frame),zeros(1,offset)];
 % alpha function as a stimulus kernel
 t = 0:tmax;
 kernel1 = exp(-t/tau).*(1 - exp(-t/tau));
-hn_offset_s = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; % manually tweaked to approximate that in Yates
-hn_offset_c = [ones(1,length(t))*0.025]; % manually tweaked to approximate that in Yates for contrast kernel
-kernel2 = kernel1 - offset_gain*hn_offset_s; % initially offset_gain was fixed at 1.5
+% manually tweaked to approximate that in Yates' paper
+ker_offset_s = [ones(1,round(t(end)/3))*0.025, 0.025:-0.025/(round(t(end)*2/3)):0]; 
+ker_offset_c = [ones(1,length(t))*0.025]; 
+kernel2 = kernel1 - offset_gain*ker_offset_s; % initially offset_gain was fixed at 1.5
 kernel2(1:4) = 0;
-kernel1 = kernel1-offset_gain*hn_offset_c;
+kernel1 = kernel1-offset_gain*ker_offset_c;
 kernel1(1:4) = 0;
 kernel1 = kernelgain_c*kernel1/max(kernel1) ; % contrast kernel
 kernel2 = kernelgain_s*kernel2/max(kernel2);  % stimulus kernel
@@ -116,10 +123,10 @@ for i = 1:len_tr
 %         res2(i,f) = poissrnd(fr2(i,f), 1, 1);
 %     end
 end
-% disp('spikes generated')
+disp('sensory responses generated')
 
 %%
-% evidence
+% evidence (decision variable)
 dv1 = cumsum(fr1(:, offset+1:offset+len_frame),2);
 dv2 = cumsum(fr2(:, offset+1:offset+len_frame),2);
 ev = dv1(:,end) - dv2(:, end);
@@ -138,6 +145,8 @@ conf = abs(ev);
 
 % % add noise on confidence judgement
 % conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
+
+% for median split
 med = median(conf);
 
 %%
@@ -179,11 +188,11 @@ else
 %     ampl = glmfit(stmbin(conf < med, :), ch(conf < med), ...
 %         'binomial', 'link', 'logit', 'constant', 'on');
 %     amp = amp(2:end); amph = amph(2:end); ampl = ampl(2:end);
-    B = lassoglm(zscore(stmbin), ch, 'binomial');
+    B = lassoglm(stmbin, ch, 'binomial');
     amp = B(:, 1);
-    B = lassoglm(zscore(stmbin(conf > med, :)), ch(conf > med), 'binomial');
+    B = lassoglm(stmbin(conf > med, :), ch(conf > med), 'binomial');
     amph = B(:, 1);
-    B = lassoglm(zscore(stmbin(conf < med, :)), ch(conf < med), 'binomial');
+    B = lassoglm(stmbin(conf < med, :), ch(conf < med), 'binomial');
     ampl = B(:, 1);
 end
 if resample_flag==1
@@ -399,8 +408,7 @@ for r = 1:size(hdxmat,1)
         svmat(r,d) = sum(hdxmat(r,:)==disval(d));
     end
 end
-
-pk0 = mean(svmat(ch==0,:),1) - mean(svmat(ch==1,:),1);
+pk0 = mean(svmat(ch==1,:),1) - mean(svmat(ch==0,:),1);
 
 function [err, err0, err1] = resamplePK(disval, hdxmat, ch, offset, nbin, frameperbin, conf, med, repeat, logreg_flag)
 conf0 = find(conf < med);
