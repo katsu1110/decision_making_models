@@ -174,9 +174,9 @@ if logreg_flag==0
     % image classification
     pka_method = 'image classification';
     for a = 1:nbin
-        amp(a) = tapk*tkernel(:,a);
-        amph(a) = tapk*tkernel_h(:,a);
-        ampl(a) = tapk*tkernel_l(:,a);
+        amp(a) = dot(tapk, tkernel(:,a));
+        amph(a) = dot(tapk, tkernel_h(:,a));
+        ampl(a) = dot(tapk, tkernel_l(:,a));
     end
 else
     % logistic regression

@@ -90,7 +90,7 @@ repeat = 0;
 plot_flag = 0;
 
 j = 1;              
-while  j<= length(varargin)
+while  j <= length(varargin)
     switch varargin{j}
         case 'ntr'
             ntr = varargin{j+1};
@@ -266,7 +266,7 @@ disp([num2str(sum(ch==0)) ' near-choices, ' num2str(sum(ch==1)) ' far-choices'])
 disp('----------------------------------------------------------------')
 
 % psychophysical kernel amplitude (PKA)
-[pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, conf, nbin, pkmethod);
+[pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, conf, nbin, pkmethod, repeat);
 if mean(isnan(pka_hc))
     pka_hc = 2*pka_all - pka_lc;
 elseif mean(isnan(pka_lc))
@@ -275,8 +275,8 @@ end
 
 % output argumant
 para = struct('category', C, 'assigned_stm', ss, 'stm', stm, 'choice', ch, ...
-    'accuracy', acc, 'confidence', conf, 'decisiontime',dt,'pka_method', pkmethod, 'pka', pka_all, ...
-    'pka_highconf', pka_hc, 'pka_lowconf', pka_lc,...
+    'accuracy', acc, 'confidence', conf, 'decisiontime',dt,'pka_method', pkmethod, 'pka', pka_all(1,:), ...
+    'pka_highconf', pka_hc(1,:), 'pka_lowconf', pka_lc(1,:),...
     'choice_bias', sum(ch==0)/sum(ch==1), ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
     'noisestm',noisestm,'noiseidv',noiseidv);
@@ -284,6 +284,11 @@ if race_flag == 1
     para.dv = {dv1, dv2, dv};
 else
     para.dv = dv;
+end
+if repeat > 0
+    para.pka_error = pka_all(2,:);
+    para.pka_highconf_error = pka_hc(2,:);
+    para.pka_lowconf_error = pka_lc(2,:);
 end
 
 % visualization
@@ -295,10 +300,10 @@ if plot_flag==1
     close all;
     h = figure;
     subplot(1,2,1)
-    nom = mean(pka_all);
+    nom = mean(pka_all(1,:));
     if repeat > 0
-        [err, errl, errh] = resamplePK(ss, stm, ch, conf, nbin, repeat, pkmethod);
-        errorbar(1:nbin, pka_all/nom, err/nom, '-', 'color', [0 0 0], 'linewidth', 2)
+        err = pka_all(2,:); errl = pka_lc(2,:); errh = pka_hc(2,:); 
+        errorbar(1:nbin, pka_all(1,:)/nom, err/nom, '-', 'color', [0 0 0], 'linewidth', 2)
     else
         plot(1:nbin, pka_all/nom, '-', 'color', [0 0 0], 'linewidth', 2)
     end    
@@ -310,12 +315,12 @@ if plot_flag==1
     
     subplot(1,2,2)
 %     nom = mean([pka_hc, pka_lc]);
-    nom = max(pka_all);
+    nom = max(pka_all(1,:));
     l = zeros(1,2);
     if repeat > 0
-        l(2) = errorbar(1:nbin, pka_lc/nom, errl/nom, '-', 'color', g, 'linewidth', 2);
+        l(2) = errorbar(1:nbin, pka_lc(1,:)/nom, errl/nom, '-', 'color', g, 'linewidth', 2);
         hold on;     
-        l(1) = errorbar(1:nbin, pka_hc/nom, errh/nom, '-', 'color', y, 'linewidth', 2);
+        l(1) = errorbar(1:nbin, pka_hc(1,:)/nom, errh/nom, '-', 'color', y, 'linewidth', 2);
     else
         l(2) = plot(1:nbin, pka_lc/nom, '-', 'color', g, 'linewidth', 2);
         hold on;
@@ -328,8 +333,7 @@ if plot_flag==1
     set(gca, 'XTick', 1:nbin)
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
-    
-%%
+
 %subfunctions
 function y = linkf(x, link)
 % link function for acceleration parameter
@@ -339,114 +343,3 @@ switch link
     case 'sigmoid'
         y = tanh(x);
 end
-
-function stmbin = binstm(stm, nbin)
-% bin the stimulus metrix along with time
-nframe = size(stm, 2);
-begin = 1;
-frameperbin = floor(nframe/nbin);
-stmbin = nan(size(stm, 1), nbin);
-for a = 1:nbin
-    stmbin(:, a) = mean(stm(:,begin:begin+frameperbin-1), 2);
-    begin = begin + frameperbin;
-end
-
-function [pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, cf, nbin, pkmethod)
-% compute PKA in a specified method
-switch pkmethod
-    case 0 % Nienborg & Cumming, 2009
-        [pka_all, pka_hc, pka_lc] = PKA_hn(ss, stm, ch, cf, nbin);
-    case 1 % image classification
-        [pka_all, pka_hc, pka_lc] = PKA_ic(ss, stm, ch, cf, nbin);
-    case 2 % logistic regression
-        [pka_all, pka_hc, pka_lc] = PKA_logreg(stm, ch, cf, nbin);
-end
-
-function pk = getKernel(stm, disval, ch)
-% trial averaged stimulus distributions split by choice
-nd = length(disval);
-ntr = length(ch);
-svmat = zeros(ntr, nd);
-for r = 1:ntr
-    for d = 1:nd
-        svmat(r,d) = sum(stm(r,:)==disval(d));
-    end
-end
-% compute PK for 0% stimulus
-pk = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
-
-function [pka_all, pka_hc, pka_lc] = PKA_hn(ss, stm, ch, cf, nbin)
-% only 0% signal trials
-stm = stm(ss==0,:);
-ch = ch(ss==0);
-cf = cf(ss==0);
-% time-averaged PK in each time bin
-stm = round(stm);
-disval = unique(stm);
-nd = length(disval);
-med = median(cf);
-tkernel = nan(nd, nbin);
-tkernel_h = nan(nd, nbin);
-tkernel_l = nan(nd, nbin);
-begin = 1;
-nframe = size(stm, 2);
-frameperbin = floor(nframe/nbin);
-for a = 1:nbin
-    pk0 = getKernel(stm(:,begin:begin+frameperbin-1), disval, ch);
-    pkh = getKernel(stm(cf > med, begin:begin+frameperbin-1), disval, ch(cf > med));
-    pkl = getKernel(stm(cf < med, begin:begin+frameperbin-1), disval, ch(cf < med));
-    tkernel(:,a) = pk0';
-    tkernel_h(:,a) = pkh';
-    tkernel_l(:,a) = pkl';
-    begin = begin + frameperbin;
-end
-% PKA
-pk = getKernel(stm, disval, ch);
-pka_all = nan(1,nbin);
-pka_hc = nan(1,nbin);
-pka_lc = nan(1,nbin);
-for a = 1:nbin
-    pka_all(a) = dot(tkernel(:,a), pk);
-    pka_hc(a) = dot(tkernel_h(:,a), pk);
-    pka_lc(a) = dot(tkernel_l(:,a), pk);
-end
-
-function [pka_all, pka_hc, pka_lc] = PKA_ic(ss, stm, ch, cf, nbin)
-% only 0% signal trials
-stm = stm(ss==0,:);
-ch = ch(ss==0);
-cf = cf(ss==0);
-% image classification to compute PKA
-pka_all = mean(stm(ch==1,:), 1) - mean(stm(ch==0,:), 1);
-med = median(cf);
-pka_hc = mean(stm(ch==1 & cf > med,:), 1) - mean(stm(ch==0 & cf > med,:), 1);
-pka_lc = mean(stm(ch==1 & cf < med,:), 1) - mean(stm(ch==0 & cf < med,:), 1);
-pka_all = binstm(pka_all, nbin);
-pka_hc = binstm(pka_hc, nbin);
-pka_lc = binstm(pka_lc, nbin);
-
-function [pka_all, pka_hc, pka_lc] = PKA_logreg(stm, ch, cf, nbin)
-% logistic regression (intercept included to capture a bias)
-stm = zscore(binstm(stm, nbin));
-pka_all = glmfit(stm, ch, ...
-    'binomial', 'link', 'logit', 'constant', 'on');
-med = median(cf);
-pka_hc = glmfit(stm(cf > med, :), ch(cf > med), ...
-    'binomial', 'link', 'logit', 'constant', 'on');
-pka_lc = glmfit(stm(cf < med, :), ch(cf < med), ...
-    'binomial', 'link', 'logit', 'constant', 'on');
-pka_all = pka_all(2:end); pka_hc = pka_hc(2:end); pka_lc = pka_lc(2:end);
-
-function [err, err0, err1] = resamplePK(ss, stm, ch, cf, nbin, repeat, pkmethod)
-% resampling procedure
-ampr = nan(repeat, nbin);
-ampr0 = nan(repeat, nbin);
-ampr1 = nan(repeat, nbin);
-ntr = length(ch);
-for r = 1:repeat
-    rtr = randi(ntr, ntr, 1);
-    [ampr(r,:), ampr1(r,:), ampr0(r,:)] = getPKA(ss(rtr), stm(rtr,:), ch(rtr), cf(rtr), nbin, pkmethod);
-end
-err = std(ampr, [], 1);
-err0 = std(ampr0, [], 1);
-err1 = std(ampr1, [], 1);
