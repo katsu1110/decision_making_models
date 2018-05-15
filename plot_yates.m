@@ -1,189 +1,201 @@
-function plot_yates(res_yates)
+function plot_yates(res)
 % plot simulation results from 'Yate_simulation.m'
+% INPUT: result structure from 'Yate_simulation.m'
 
 close all;
-h = figure;
 
-% debug stimulus statistics
-subplot(2,3,1)
-histogram(sumstm)
-xlabel('actual signal strength')
-ylabel('trials')
-
-subplot(2,3,4)
-plot(1:lenv, mean(stm,1))
+% stm/co kernels
+figure(1);
+subplot(3,4,1)
+t = [1:length(res.kernel_stm)] - 1;
+plot(t, res.kernel_stm, '-b', 'linewidth',2)
 hold on;
-plot(1:lenv, median(stm,1))
-xlim([1 lenv])
-xlabel('time during stimulus presentation')
-ylabel('signal')
-legend('mean', 'median')
-legend('boxoff')
+plot(t, -res.kernel_stm, '-r', 'linewidth',2)
+xlim([t(1) t(end)])
+xlabel('time (ms)')
+title('stimulus kernel')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
-hdxlab = cell(1, lenhdx);
-for i = 1:lenhdx
-    hdxlab{i} = num2str(hdx(i));
+subplot(3,4,2)
+plot(t, res.kernel_co, '-k', 'linewidth',2)
+xlim([t(1) t(end)])
+xlabel('time (ms)')
+title('contrast kernel')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+
+subplot(3,4,3)
+if isfield(res, 'kernel_ht')
+    plot(res.kernel_ht, '-k', 'linewidth',2)
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
-p = [2 3 5 6];
-for l = 1:4
-    switch l
-        case 1
-            idx = stmsign_p2;
-            tlab = 'pref stm';
-        case 2
-            idx = stmsign_n2;
-            tlab = 'null stm';
-        case 3
-            idx = ch==1;
-            tlab = 'ch 1';
-        case 4
-            idx = ch==0;
-            tlab = 'ch 0';
-    end
-    c = zeros(nbin, lenhdx);
-    for n = 1:nbin
-        for m = 1:lenhdx
-            c(n,m) = sum(stmmat(idx,n)==hdx(m));
+xlabel('time (ms)')
+title('history kernel')    
+
+% example PSTH
+subplot(3,4,4)
+nneuron = 1;
+offset = 100;
+time = [1:length(res.neuron(1).spk1(1,:))] - offset;
+imagesc(time, 1:2*nneuron, [res.neuron(1).spk1(1,:); res.neuron(1).spk2(1,:)])
+colormap(gca, flipud(bone))
+hold on;
+plot(time, 1.5*ones(1, length(time)), '-m')
+hold on;
+plot(time, 1.5+ 3*res.stm(1,:), '-g', 'linewidth',2)
+hold on;
+xlim([time(1) time(end)])
+ylim([0 2*nneuron+1])   
+xlabel('time (ms)')
+ylabel('neurons')
+title('example: trial 1')
+set(gca,'box','off'); set(gca, 'TickDir', 'out')
+
+% overall stimulus sign
+sumstm = sum(res.stm,2);
+stmsign = sign(sumstm);
+med_p = median(sumstm(stmsign > 0));
+med_n = median(sumstm(stmsign < 0));
+stmsign_p2 = stmsign > 0 & sumstm > med_p;
+stmsign_n2 = stmsign < 0 & sumstm < med_n;
+
+lent = length(time);
+ras1 = zeros(nneuron, lent);
+ras2 = zeros(nneuron, lent);
+spkch1 = zeros(1, lent);
+spkch2 = zeros(1, lent);
+spkstm1 = zeros(1, lent);
+spkstm2 = zeros(1, lent);
+for n = 1:nneuron
+    ras1(n,:) = 1*(res.neuron(n).spk1(1,:) > 0);
+    ras2(n,:) = 1*(res.neuron(n).spk2(1,:) > 0);
+    spkch1 = spkch1 + mean(res.neuron(n).spk1(res.ch==1, 1:lent), 1);
+    spkch2 = spkch2 + mean(res.neuron(n).spk1(res.ch==0, 1:lent), 1);
+    spkstm1 = spkstm1 + mean(res.neuron(n).spk1(stmsign_p2, 1:lent), 1);
+    spkstm2 = spkstm2 + mean(res.neuron(n).spk1(stmsign_n2, 1:lent), 1);
+end
+len_frame = length(res.neuron(1).spk1(1,:)) - 2*offset;
+nbin = length(res.pka);
+frameperbin = len_frame/nbin;
+
+% PSTH (preferred or null stimulus)
+subplot(3,4,5)
+plot(time, spkstm1/nneuron, '-b', 'linewidth',1)
+hold on;
+plot(time, spkstm2/nneuron, '-r', 'linewidth',1)
+hold on;
+yy = get(gca, 'YLim');
+begin = 1;
+for i = 1:nbin+1
+    hold on;
+    plot(begin*[1 1],yy, ':k')
+    begin = begin + frameperbin;
+end
+xlim([-offset len_frame+offset])
+ylim(yy)    
+xlabel('time (ms)')
+ylabel('psth (by stm)')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+
+% PSTH (preferred or null choice)
+subplot(3,4,6)
+plot(time, spkch1/nneuron, '-b', 'linewidth',1)
+hold on;
+plot(time, spkch2/nneuron, '-r', 'linewidth',1)
+hold on;
+yy = get(gca, 'YLim');
+begin = 1;
+for i = 1:nbin+1
+    hold on;
+    plot(begin*[1 1],yy, ':k')
+    begin = begin + frameperbin;
+end
+xlim([-offset len_frame+offset])
+ylim(yy)    
+xlabel('time (ms)')
+ylabel('psth (by choice)')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+
+% PTA
+subplot(3,4,7);
+col = copper(nbin);
+PTA = cell(1, nbin);
+for n = 1:nneuron
+    PTA1 = PTA_easy(res.neuron(n).spk1, res.stm, max(res.stm(:)),nbin, offset, frameperbin);
+    PTA2 = PTA_easy(res.neuron(n).spk2, res.stm, min(res.stm(:)),nbin, offset, frameperbin);
+    for b = 1:nbin
+        if n==1
+            PTA{b} = (PTA1{b} + PTA2{b})/2;
+        else
+            PTA{b} = PTA{b} + (PTA1{b} + PTA2{b})/2;
         end
     end
-    subplot(2,3,p(l))
-    imagesc(1:lenhdx, 1:nbin, c)
-    colorbar
-    xlabel('hdx')
-    ylabel('pulse')
-    title(tlab)
-    set(gca,'XTick',1:lenhdx, 'XTickLabel',hdxlab)
-    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
-
-%%
-% debug psth
-figure;
-for l = 1:2
-    switch l
-        case 1
-            idx1 = stmsign_p2;
-            idx2 = stmsign_n2;
-            tlab1 = 'pref stm';
-            tlab2 = 'null stm';
-        case 2
-            idx1 = ch==1;
-            idx2 = ch==0;
-            tlab1 = 'pref ch';
-            tlab2 = 'null ch';
-    end
-    subplot(1,2,l)
-    plot(time, mean(fr1(idx1,:)), '-b', 'linewidth',1)
+for n = 1:nbin
+    plot(1:len_frame, PTA{n}/nneuron,...
+        'color',col(n,:),'linewidth',2)
     hold on;
-    plot(time, mean(fr1(idx2,:)), '-r', 'linewidth',1)
-    hold on;
-    yy = get(gca, 'YLim');
-    begin = 1;
-    for i = 1:nbin+1
-        hold on;
-        plot(begin*[1 1],yy, ':k')
-        begin = begin + frameperbin;
-    end
-    xlim([-offset len_frame+offset])
-    ylim(yy)    
-    ylabel('psth')
-    legend(tlab1, tlab2)
-    legend('boxoff')
-    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
+xlabel('time (ms)')
+ylabel('PTA')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
-%%
-% debug PK
-figure;
+% confidence
+subplot(3,4,8)
+histogram(res.confidence)
+hold on;
+me = median(res.confidence);
+yy = get(gca, 'YLim');
+plot(me*[1 1], yy, '-r')
+text(me*1.1, yy(1)+(yy(2)-yy(1))*0.8, ['median = ' num2str(me)], 'color', 'r')
+xlabel('confidence')
+ylabel('trials')
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
-subplot(1,2,1)
-imagesc(1:nbin, hdx, tkernel/max(tkernel(:)))
-colormap(copper)
-c = caxis;
+% PKA
+subplot(3,4,9)
+nom = mean(res.pka);
+if isfield(res, 'pka_err')
+    errorbar(1:nbin, res.pka/nom, res.pka_err/nom, '-k', ...
+        'linewidth', 2, 'CapSize',0)
+else
+    plot(1:nbin, res.pka/nom, '-k', 'linewidth', 2)
+end
+xlim([0.75 nbin+0.25])
 xlabel('time bin')
-ylabel('hdx')
-title(c)
-
-subplot(1,2,2)
-nom = mean(amp);
-if resample_flag==1
-    fill_between(1:nbin, (amp-err)/nom, (amp+err)/nom, [0 0 0])
-    hold on;
-end
-plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
-xlim([0.5 nbin + 0.5])
-ylabel({'kernel amplitude', ['(' pka_method ')']})
+ylabel('PKA')
 set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
 % yellow and green
 y = [0.9576    0.7285    0.2285];
 g = [0.1059    0.4706    0.2157];
-figure;
-%     subplot(1,4,1)
-%     imagesc(1:nbin, hdx, tkernel)
-%     c0 = caxis;
-%     xlabel('time bin')
-%     ylabel('hdx')
-%     title('overall')
 
-subplot(1,3,1)
-vmax = max([max(tkernel_h(:)), max(tkernel_l(:))]);
-imagesc(1:nbin, hdx, tkernel_h/vmax)
-colormap(copper)
-c1 = caxis;
-xlabel('time bin')
-ylabel('hdx')
-title('high conf.')
-
-subplot(1,3,2)
-imagesc(1:nbin, hdx, tkernel_l/vmax)
-colormap(copper)
-c2 = caxis;
-xlabel('time bin')
-ylabel('hdx')
-title('low conf.')
-
-c = [min([c1 c2]) max([c1 c2])];
-subplot(1,3,1)
-caxis(c)
-subplot(1,3,2)
-caxis(c)
-
-subplot(1,3,3)
-%     nom = mean([amph, ampl]);
-nom = max(amp);
-if resample_flag==1
-%         fill_between(1:nbin, (amp-err)/nom, (amp+err)/nom, [1 0 0])
-%         hold on;
-    fill_between(1:nbin, (amph-errh)/nom, (amph+errh)/nom, y)
+subplot(3,4,[10 11])
+nom = max(res.pka);
+l = nan(1,2);
+if isfield(res, 'pka_err')
+    l(1) = errorbar(1:nbin, res.pka_highconf/nom,res.pka_highconf_err/nom, ...
+        '-', 'color', y, 'linewidth', 2, 'CapSize', 0);
     hold on;
-    fill_between(1:nbin, (ampl-errl)/nom, (ampl+errl)/nom, g)
+    l(2) = errorbar(1:nbin, res.pka_lowconf/nom, res.pka_lowconf_err/nom, ...
+        '-', 'color', g, 'linewidth', 2, 'CapSize', 0);
+else
+    l(1) = plot(1:nbin, res.pka_highconf/nom, '-', 'color', y, 'linewidth', 2);
     hold on;
+    l(2) = plot(1:nbin, res.pka_lowconf/nom, '-', 'color', g, 'linewidth', 2);
 end
-%     plot(1:nbin, amp/nom, '-r', 'linewidth', 2)
-%     hold on;
-plot(1:nbin, amph/nom, '-', 'color', y, 'linewidth', 2)
-hold on;
-plot(1:nbin, ampl/nom, '-', 'color', g, 'linewidth', 2)
-xlim([0.5 nbin + 0.5])
-ylabel({'kernel amplitude', ['(' pka_method ')']})
-title(c)
+xlim([0.75 nbin+0.25])
+xlabel('time bin')
+ylabel('PKA')
 set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+legend(l, 'high confidence', 'low confidence', 'location', 'eastoutside')
+legend('boxoff')
 
-function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
-if nargin < 3
-        error('x, y_bottom, y_top are required as input arguments')
-elseif nargin==3
-        maincolor = [0 0 0];
-        transparency = [];
-elseif nargin==4
-        transparency = [];
-end
-
-edgecolor = maincolor + (1 - maincolor)*0.55;
-
-h = fill([x fliplr(x)],[y_bottom fliplr(y_top)],edgecolor);
-set(h,'EdgeColor','none')
-if ~isnan(transparency)
-        alpha(transparency)
+function PTA = PTA_easy(spk, stm, pref, nbin, offset, frameperbin)
+% compute the pulse triggered averaging quickly
+PTA = cell(1, nbin);
+begin = 1 + offset;
+for n = 1:nbin
+    PTA{n} = mean(spk(stm(:,begin)==pref,1+offset:nbin*frameperbin+offset),1)...
+        - mean(spk(:,1+offset:nbin*frameperbin+offset),1);
+    begin = begin + frameperbin;
 end

@@ -242,13 +242,13 @@ para.psth.stm_pref_adaptation = compute_adaptation(para.psth.stm_pref, offset, n
 [cp1, cp2] = compute_cp(para.neuron(k).spk1(:, offset+1:offset+len_frame), ch, nbin, frameperbin);
 para.psth.cp = [cp1; cp2];
 para.pkmethod = pkmethod;
-para.amp = amp(1,:);
-para.amp_h = amph(1,:);
-para.amp_l = ampl(1,:);
+para.pka = amp(1,:);
+para.pka_highconf = amph(1,:);
+para.pka_lowconf = ampl(1,:);
 if repeat > 0    
-    para.amp_err = amp(2,:);
-    para.amp_highconf_err = amph(2,:);
-    para.amp_lowconf_err = ampl(2,:);
+    para.pka_err = amp(2,:);
+    para.pka_highconf_err = amph(2,:);
+    para.pka_lowconf_err = ampl(2,:);
 end
 
 % subfunction
