@@ -6,7 +6,8 @@ function para = SDT_PKA(varargin)
 % INPUT:
 % 'db' ... float; decision boundary (for Integration-to-Bound model)
 % 'dt' ... float; contribution of decision time to confidence
-% 'race' ... race model (2 integrators)
+% 'race' ... race model (2 integrators). Set 'db' to be 2-element vector
+% (e.g. [200 180])
 % 'acceleration' ... float; acceleration parameter 
 %  (negative: leaky-integration, 0: perfect integration, positive: attractor)
 % 'link' ... link function for acceleration parameter: 'linear' or
@@ -190,6 +191,9 @@ noiseidv = std(idv(:));
 dt = nframe*ones(ntr,1);
 dbreach = zeros(ntr, 1);
 if race_flag == 1
+    if length(db)==1
+        db = [db, db];
+    end
     % two accumulators
     idv1 = idv; idv2 = idv; 
     idv1(idv1 < 0) = 0;
@@ -204,8 +208,8 @@ if race_flag == 1
 
     % integration-to-bound and decision time
     for n = 1:ntr   
-        idx1 = find(abs(dv1(n,:)) >= db, 1, 'first');
-        idx2 = find(abs(dv2(n,:)) >= db, 1, 'first');
+        idx1 = find(abs(dv1(n,:)) >= db(1), 1, 'first');
+        idx2 = find(abs(dv2(n,:)) >= db(2), 1, 'first');
         if ~isempty(idx1) || ~isempty(idx2)
             idx = min([idx1, idx2]);
             dv1(n, idx:end) = dv1(n, idx);

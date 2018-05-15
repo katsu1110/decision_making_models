@@ -73,9 +73,11 @@ cf = cf(ss==0);
 disval = unique(stm);
 nd = length(disval);
 % discretize stimuli, if too many unique values
-if nd > 25 && stm(end) > 10
-    stm = round(stm);
+if nd > 25
+    [~,~,stm] = histcounts(stm, 11);
+    stm = stm - mean(mean(stm));
 end
+disval = unique(stm);
 nd = length(disval);
 med = median(cf);
 tkernel = nan(nd, nbin);
