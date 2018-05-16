@@ -29,10 +29,11 @@ switch pkmethod
     case 2 % logistic regression
         [pka_all, pka_hc, pka_lc] = PKA_logreg(stm, ch, cf, nbin);
 end
-disp('resample')
+
 % resampling for error bars
 if nargin < 7; repeat = 0; end
 if repeat > 0
+    disp('resample')
     [err, err0, err1] = resamplePK(ss, stm, ch, cf, nbin, repeat, pkmethod);
     pka_all = [pka_all; err];
     pka_hc = [pka_hc; err1];
