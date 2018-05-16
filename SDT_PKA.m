@@ -63,7 +63,7 @@ cfnoise = 0;
 weights = ones(1, nframe);
 
 % decision boundry
-db = 10000; % this is essentially infinite
+db = inf; % this is essentially infinite
 
 % taking into acount decision time
 dtw = 0;
@@ -176,6 +176,9 @@ ss = stm;
 stm = repmat(stm, 1, nframe);
 stm = arrayfun(@(x) normrnd(x, 2*stmSD), stm);
 
+% instantaneous noisy measurements (decision variable)
+idv = arrayfun(@(x) normrnd(x, noise), stm);
+
 % race model
 dt = nframe*ones(ntr,1);
 dbreach = zeros(ntr, 1);
@@ -183,9 +186,10 @@ if race_flag == 1 % 2 integrators
     if length(db)==1
         db = [db, db];
     end
-    % instantaneous noisy measurements
-    idv1 = arrayfun(@(x) normrnd(x, noise), stm);
-    idv2 = arrayfun(@(x) normrnd(x, noise), -stm);
+    % instantaneous noisy measurements    
+    idv1 = idv; idv2 = idv;
+    idv1(idv(:) <= 0) = normrnd(0, noise, sum(idv(:) <= 0), 1);
+    idv2(idv(:) >= 0) = normrnd(0, noise, sum(idv(:) >= 0), 1);
 
     % sensory weighting
     idv1 = idv1.*repmat(weights, ntr, 1);
@@ -213,9 +217,6 @@ if race_flag == 1 % 2 integrators
     dv = dv1 + dv2;
     idv = [idv1, idv2];
 else % one integrator
-    % instantaneous noisy measurements (decision variable)
-    idv = arrayfun(@(x) normrnd(x, noise), stm);
-
     % sensory weighting
     idv = idv.*repmat(weights, ntr, 1);
 
