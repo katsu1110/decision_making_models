@@ -172,32 +172,25 @@ stm(C==-1) = datasample(-dc, sum(C==-1), 'Weights', pc2);
 stm(randi(ntr, round(ntr/2), 1)) = 0;
 ss = stm;
 
-% trials x frames
+% trials x frames (dynamic stimuli)
 stm = repmat(stm, 1, nframe);
 stm = arrayfun(@(x) normrnd(x, 2*stmSD), stm);
-
-% instantaneous noisy measurements (decision variable)
-idv = arrayfun(@(x) normrnd(x, noise), stm);
-
-% sensory weighting
-idv = idv.*repmat(weights, ntr, 1);
-
-% noise levels (experiment & internal)
-noisestm = std(stm(:));
-noiseidv = std(idv(:));
 
 % race model
 dt = nframe*ones(ntr,1);
 dbreach = zeros(ntr, 1);
-if race_flag == 1
+if race_flag == 1 % 2 integrators
     if length(db)==1
         db = [db, db];
     end
-    % two accumulators
-    idv1 = idv; idv2 = idv; 
-    idv1(idv1 < 0) = 0;
-    idv2(idv2 > 0) = 0;
+    % instantaneous noisy measurements
+    idv1 = arrayfun(@(x) normrnd(x, noise), stm);
+    idv2 = arrayfun(@(x) normrnd(x, noise), -stm);
 
+    % sensory weighting
+    idv1 = idv1.*repmat(weights, ntr, 1);
+    idv2 = idv2.*repmat(weights, ntr, 1);
+    
     % evidence integration
     dv1 = idv1; dv2 = idv2;
     for f = 2:nframe
@@ -218,7 +211,14 @@ if race_flag == 1
         end
     end
     dv = dv1 + dv2;
+    idv = [idv1, idv2];
 else % one integrator
+    % instantaneous noisy measurements (decision variable)
+    idv = arrayfun(@(x) normrnd(x, noise), stm);
+
+    % sensory weighting
+    idv = idv.*repmat(weights, ntr, 1);
+
     % evidence integration
     dv = idv;
     for f = 2:nframe
@@ -237,9 +237,12 @@ else % one integrator
         end
     end
 end
-
 nreach0 = 100*sum(dbreach==1)/ntr;
 disp(['The % trials reaching the DB: ' num2str(nreach0)])
+
+% noise levels (experiment & internal)
+noisestm = std(stm(:));
+noiseidv = std(idv(:));
 
 % confidence & choice
 [conf, ch] = compute_confidence(dv(:,end), (nframe/2)*noise, conftype, stmdist,...
