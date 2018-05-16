@@ -1,11 +1,13 @@
 function para = SDT_PKA(varargin)
 %% 
-% simulation of Signal detection theory (SDT) based models to compute
+% simulation of a Signal detection theory (SDT) based model to compute
 % psychophysical kernel amplitude (PKA) in a 2AFC task
 %
 % INPUT:
 % 'db' ... float; decision boundary (for Integration-to-Bound model)
 % 'dt' ... float; contribution of decision time to confidence
+% 'dc' ... float vector; range of signal strength. It can start from
+% negative like [-5:5:50] to represent overlapped stimulus distributions
 % 'race' ... race model (2 integrators). Set 'db' to be 2-element vector
 % (e.g. [200 180])
 % 'acceleration' ... float; acceleration parameter 
@@ -17,7 +19,7 @@ function para = SDT_PKA(varargin)
 % 'nbin' ... int; the number of time bins to compute the time-resolved PKA 
 % 'noise' ... float; pooling noise (internal noise). 22.8 is default. 
 % 'cfnoise' ... float; noise on confidence judgement. 0 is default. 
-% 'weights' ... vector with the same length of nframe (20 in default)
+% 'weights' ... vector with the same length of nframe 
 % 'pkmethod' ... method to compute psychophysical kernel amplitude: 
 %              0, weights as occurences of frames (Nienborg &
 %              Cumming, 2009). In default.
@@ -44,6 +46,9 @@ function para = SDT_PKA(varargin)
 % pre-set parameters
 ntr = 10^5;
 nframe = 20;
+
+% evidence strength
+dc = 0:5:50;
 
 % race model
 race_flag = 0;
@@ -81,9 +86,6 @@ stmdist = 'uniform';
 % confidence
 conftype = 'sdt';
 
-% overlap between stimulus distributions
-overlap = 0;
-
 % resampling
 repeat = 0;
 
@@ -111,6 +113,9 @@ while  j <= length(varargin)
         case 'db'
             db = varargin{j+1};
             j = j + 2;
+        case 'dc'
+            dc = varargin{j+1};
+            j = j + 2;
         case 'acceleration'
             acceleration = varargin{j+1};
             j = j + 2;
@@ -132,9 +137,6 @@ while  j <= length(varargin)
         case 'conftype'
             conftype = varargin{j+1};
             j = j + 2;
-        case 'overlap'
-            overlap = varargin{j+1};
-            j = j + 2;
         case 'repeat'
             repeat = varargin{j+1};
             j = j + 2;
@@ -143,9 +145,6 @@ while  j <= length(varargin)
             j = j + 1;
     end
 end
-
-% evidence strength
-dc = -overlap:5:50;
 
 % stimulus distribution
 stmMean = 25;

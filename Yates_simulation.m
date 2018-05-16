@@ -3,19 +3,18 @@ function para = Yates_simulation(varargin)
 % simulations of "stimulus-to-SensoryNeuron model' presented in Yates et al., 2017
 %
 % INPUT:
-% 'ntr' ... int
+% 'ntr' ... int; the number of trials
 % 'nneuron' ... int; the number of sensory neurons per pool
 % 'tmax' ... float; time length for the stm/co kernel
 % 'tau' ... float; width of the stm/co kernel
 % 'kernelgain_s' ... float; magnitude of the stm kernel
 % 'kernelgain_c' ... float; magnitude of the co kernel
-% 'offset_gain' ... float; magnitude of the negative peak of the stm/co
-% kernel
+% 'offset_gain' ... float; magnitude of the negative peak of the stm/co kernel
 % 'history' ... 0; without history kernel, 1; with history kernel
 % 'stm_gain'... float; range of the stimulus
-% 'nbin'... int
+% 'nbin'... int; the number of time bin for PKA
 % 'pkmethod' ... method to compute psychophysical kernel amplitude (PKA)
-%                0; Nienborg & Cumming, 2009, 1; logistic regression
+%                0; Nienborg & Cumming, 2009, 1; image classification ,2; logistic regression
 % 'repeat' ... the number of repeats for resampling
 % 'plot'... 0; no figure, 1; figure
 %  
@@ -25,7 +24,7 @@ function para = Yates_simulation(varargin)
 
 % default input arguments
 nneuron = 1;
-len_tr = 1000;
+len_tr = 5000;
 tmax = 300; %was 400
 tau = 50; %was 30
 kernelgain_s = 0.05; %was 0.05
@@ -217,12 +216,6 @@ end
     ch, conf, nbin, pkmethod, repeat);
 disp('PK computed')
 
-%%
-% visualization
-if plot_flag
-    plot_yates(para);
-end
-
 %% 
 % store variables
 para.kernel_stm = kernel2;
@@ -249,6 +242,12 @@ if repeat > 0
     para.pka_err = amp(2,:);
     para.pka_highconf_err = amph(2,:);
     para.pka_lowconf_err = ampl(2,:);
+end
+
+%%
+% visualization
+if plot_flag
+    plot_yates(para);
 end
 
 % subfunction

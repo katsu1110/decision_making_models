@@ -16,7 +16,7 @@ function [pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, cf, nbin, pkmethod, rep
 % pka_lc ... PKA in low confidence trials
 %
 % NOTE: when repeat > 0, resampling is performed and estimated SEM is 
-% stored in the second row of the output pka
+% stored in the second row of each output pka
 %
 % +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
