@@ -50,7 +50,7 @@ for d = 1:lendc
     cfc(d) = mean(confidence(accuracy==1 & stimulus==dc(d)));
     cfe(d) = mean(confidence(accuracy==0 & stimulus==dc(d)));
 end
-para.signal = dc;
+para.signal = dc';
 para.pm_lowconf = pm0;
 para.pm_highconf = pm1;
 para.correct_conf = cfc;
