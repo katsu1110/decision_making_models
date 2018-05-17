@@ -27,7 +27,6 @@ function para = SDT_PKA(varargin)
 %              2, logistic regression
 % 'stmdist' ... type of stimulus distribution:  'uniform' or 'Gaussian'
 % 'conftype' ... confidence type: 'sdt' (Hangya et al., 2016) or 'Bayes' (Adler & Ma, 2017)
-% 'overlap'... overlap (0 or >1) between P(s|C=-1) and P(s|C=1). Default is 0.
 % 'repeat' ... the number of repeats for resampling (bootstrap)
 % 'plot' ... plot PKA
 %
