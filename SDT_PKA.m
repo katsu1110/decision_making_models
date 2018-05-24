@@ -38,7 +38,7 @@ function para = SDT_PKA(varargin)
 %
 % NOTE:
 % Unit of decision bound here is arbitrary. Formally it needs to be normalized (divided) by
-% the standard deviation of instantaneous decision variables (para.noiseidv)
+% the stimulus noise (in this case, 15)
 %
 % ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
