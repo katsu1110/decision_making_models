@@ -19,7 +19,7 @@ if nargin < 4; plot_flag = 1; end
 para= [];
 ntr = length(confidence);
 
-binsize = 20;
+binsize = 12;
 frameperbin = floor(ntr/binsize);
 [sorted_cf, si] = sort(confidence);
 sorted_acc = accuracy(si);
@@ -67,7 +67,6 @@ if plot_flag==1
     % confidence vs accuracy
     subplot(1,3,1)
     plot(cfx, acx, '-k', 'linewidth', 2)
-    set(gca, 'box', 'off')
     xlabel('confidence')
     ylabel('accuracy (%)')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
@@ -77,7 +76,6 @@ if plot_flag==1
     plot(dc, pm1, '-', 'color', y, 'linewidth', 2)
     hold on;
     plot(dc, pm0, '-', 'color', g, 'linewidth', 2)
-    set(gca, 'box', 'off')
     xlim([dc(1) dc(end)])
     xlabel('signal strength')
     ylabel('accuracy (%)')
@@ -90,7 +88,6 @@ if plot_flag==1
     plot(dc, cfc, '-', 'color', zeros(1,3), 'linewidth', 2)
     hold on;
     plot(dc, cfe, '-', 'color', 0.4*ones(1,3), 'linewidth', 2)
-    set(gca, 'box', 'off')
     xlim([dc(1) dc(end)])
     xlabel('signal strength')
     ylabel('confidence')
