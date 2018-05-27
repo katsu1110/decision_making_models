@@ -5,6 +5,7 @@ function dvdt_map(res)
 %
 % INPUT: output struct from 'SDT_PKA.m'
 
+% loop to extract dv, dt with respect to choice correctness
 ntr = size(res.category, 1);
 dt = nan(2, ntr);
 dv = nan(2, ntr);
@@ -21,21 +22,55 @@ for n = 1:ntr
         dv(l, n) = res.dv{1}(n,end);
     end
 end
+
+% map between dv, dt, and probability correct
+nstep_dv = 5; nstep_dt = 5;
+
+% define integer grid of coordinates for the above data
+[X,Y] = meshgrid(1:nstep_dv, 1:nstep_dt);
+
+% define a finer grid of points
+smoothstep = 0.01;
+[X2,Y2] = meshgrid(1:smoothstep:nstep_dv, 1:smoothstep:nstep_dt);
+
+% map percent correct
+mat = {zeros(nstep_dv, nstep_dt), zeros(nstep_dv, nstep_dt), zeros(nstep_dv, nstep_dt)}; 
+for l = 1:2
+    dtprc = prctile(dt(l,:), 0:(100/nstep_dt):100);
+    dvprc = prctile(abs(dv(l,:)), 0:(100/nstep_dv):100);
+    for i = 1:nstep_dv
+        dvrange = abs(dv(l,:)) >= dvprc(i) & abs(dv(l,:)) < dvprc(i+1);
+        for k = 1:nstep_dt 
+            dtrange = dt(l,:) >= dtprc(k) & dt(l,:) < dtprc(k+1);
+            mat{l}(i,k) = sum(dtrange==1 & dvrange==1)/ntr;
+        end
+    end
+    % smooth
+    mat{l} = interp2(X, Y, mat{l}, X2, Y2, 'linear');
+end
+mat{3} = mat{1}./(mat{1} + mat{2});
+
 close all;
 h = figure;
-subplot(1,2,1)
-scatter(dt(1,:),abs(dv(1,:)),100,'s','markerfacecolor',[1 0 0],...
-    'markerfacealpha',0.1,'markeredgecolor',[1 0 0],...
-    'markeredgealpha',0.1)
-xlabel('decision time')
-ylabel({'acculumated evidence','of losing accumulator'})
-title('correct trials')
-set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
-subplot(1,2,2)
-scatter(dt(2,:),abs(dv(2,:)),100,'s','markerfacecolor',[0 0 1],...
-    'markerfacealpha',0.1,'markeredgecolor',[0 0 1],...
-    'markeredgealpha',0.1)
-xlabel('decision time')
-ylabel({'acculumated evidence','of losing accumulator'})
-title('error trials')
-set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+tlab = {'correct', 'error', 'odds'};
+for n = 1:3
+    subplot(1,3,n)
+    imagesc(mat{n})
+    c = colorbar('southoutside');
+    if n==3
+        c.Label.String = 'probability correct';
+    else
+        c.Label.String = 'probability';
+    end
+    xlabel('decision time')
+    if n == 1
+        ylabel({'acculumated evidence','of losing accumulator'})
+    end
+    title(tlab{n})
+    xx = get(gca, 'XLim');
+    yy = get(gca, 'YLim');
+    set(gca, 'XTick', xx, 'XTickLabel', [0, round(max(dt(:)))])
+    set(gca, 'YTick', yy, 'YTickLabel', [0, round(max(abs(dv(:))))])
+    set(gca, 'YDir', 'normal')
+    set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
+end

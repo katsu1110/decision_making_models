@@ -186,9 +186,10 @@ if race_flag == 1 % 2 integrators
         db = [db, db];
     end
     % instantaneous noisy measurements    
-    idv1 = idv; idv2 = idv;
-    idv1(idv(:) <= 0) = normrnd(0, noise, sum(idv(:) <= 0), 1);
-    idv2(idv(:) >= 0) = normrnd(0, noise, sum(idv(:) >= 0), 1);
+    idv1 = stm; idv2 = stm;
+    idv1(stm < 0) = 0; idv2(stm > 0) = 0; 
+    idv1 = arrayfun(@(x) normrnd(x, noise), idv1);
+    idv2 = arrayfun(@(x) normrnd(x, noise), idv2);
 
     % sensory weighting
     idv1 = idv1.*repmat(weights, ntr, 1);
