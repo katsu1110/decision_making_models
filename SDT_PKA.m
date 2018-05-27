@@ -38,7 +38,7 @@ function para = SDT_PKA(varargin)
 %
 % NOTE:
 % Unit of decision bound here is arbitrary. Formally it needs to be normalized (divided) by
-% the stimulus noise (in this case, 15)
+% the stimulus noise (para.stmSD)
 %
 % ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
