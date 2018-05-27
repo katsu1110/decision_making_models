@@ -146,8 +146,8 @@ while  j <= length(varargin)
 end
 
 % stimulus distribution
-stmMean = 25;
-stmSD = 15;
+stmMean = mean(dc);
+stmSD = std(dc);
 switch lower(stmdist)
     case 'uniform' 
         lendc = length(dc);
@@ -286,7 +286,7 @@ para = struct('category', C, 'assigned_stm', ss, 'stm', stm, 'choice', ch, ...
     'pka_highconf', pka_hc(1,:), 'pka_lowconf', pka_lc(1,:),...
     'choice_bias', sum(ch==0)/sum(ch==1), ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
-    'noisestm',noisestm,'noiseidv',noiseidv);
+    'noisestm',noisestm,'noiseidv',noiseidv, 'stmMean', stmMean, 'stmSD', stmSD);
 if race_flag == 1
     para.dv = {dv1, dv2, dv};
 else
