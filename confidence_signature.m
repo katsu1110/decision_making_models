@@ -1,11 +1,11 @@
-function [cf, acc, stm] = confidence_signature(ntr, noise, conftype, stmdist, overlap)
+function [cf, acc, stm] = confidence_signature(ntr, noise, conftype, stmdist, dc)
 %% simulation of the signatures of decision confidence 
 % INPUT: 
 % ntr ... the number of simulated trials
 % noise ... internal noise: default is 22.8
 % conftype ... 'sdt' (Hangya et al., 2016) or 'Bayes' (Adler & Ma, 2017) 
 % stmdist ... type of stimulus distribution:  'uniform' or 'Gaussian'
-% overlap ... overlap (0 or >1) between P(s|C=-1) and P(s|C=1). Default is 0. 
+% dc ... a vector of signal strength (can start from negative, representing overlapping distribution) 
 %
 % OUTPUT: cf (confidence: 0.5 - 1)
 %         acc (accuracy: 0, error; 1, correct)
@@ -27,14 +27,11 @@ if nargin < 1; ntr = 10^6; end
 if nargin < 2; noise = 22.8; end
 if nargin < 3; conftype = 'sdt'; end
 if nargin < 4; stmdist = 'uniform'; end
-if nargin < 5; overlap = 0; end
-
-% evidence strength
-dc = -overlap:1:50;
+if nargin < 5; dc = 0:5:50; end
 
 % stimulus distribution
-stmMean = 25;
-stmSD = 15;
+stmMean = mean(dc);
+stmSD = std(dc);
 switch lower(stmdist)
     case 'uniform' 
         lendc = length(dc);
