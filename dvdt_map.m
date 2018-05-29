@@ -78,8 +78,13 @@ mat{m-1} = log(mat{m-1});
 mat{m+1} = mat{m-2} - mat{m-1};
 crange = [min([mat{m-2}(:); mat{m-1}(:)]), max([mat{m-2}(:); mat{m-1}(:)])];
 tlab = {'log(P(v|t,S))', 'log(P(correct,v,t|v=B,S))', 'log(P(error,v,t|v=B,S))', 'log(P(v,t|S))','log odds correct'};
+subplot(2,3,1)
+plot(mean(dv1,1),'-');
+hold on;
+plot(mean(dv2,1)','-');
+set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 for n = 1:m+1
-    subplot(2,3,n)
+    subplot(2,3,n+1)
     imagesc(mat{n})
     colorbar('southoutside');
     if n==1
