@@ -20,6 +20,9 @@ function [pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, cf, nbin, pkmethod, rep
 %
 % +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+% median split of confidence in each stimulus type
+cf = binalize(cf, ss);
+
 % main part
 switch pkmethod
     case 0 % Nienborg & Cumming, 2009
@@ -41,6 +44,23 @@ if repeat > 0
 end
 
 % subfunctions
+function cf = binalize(cf, ss)
+% median split of cf
+u = unique(cf);
+cf_orig = cf;
+if length(u)==2
+    cf(cf_orig==min(cf_orig)) = 0;
+    cf(cf_orig==max(cf_orig)) = 1;
+else
+    unis = unique(ss);
+    lens = length(unis);
+    for s = 1:lens
+        med = median(cf(ss==unis(s)));
+        cf(ss==unis(s) & cf_orig < med) = 0;
+        cf(ss==unis(s) & cf_orig > med) = 1;
+    end
+end
+
 function stmbin = binstm(stm, nbin)
 % bin the stimulus metrix along with time
 nframe = size(stm, 2);
@@ -80,7 +100,6 @@ if nd > 25
 end
 disval = unique(stm);
 nd = length(disval);
-med = median(cf);
 tkernel = nan(nd, nbin);
 tkernel_h = nan(nd, nbin);
 tkernel_l = nan(nd, nbin);
@@ -89,8 +108,8 @@ nframe = size(stm, 2);
 frameperbin = floor(nframe/nbin);
 for a = 1:nbin
     pk0 = getKernel(stm(:,begin:begin+frameperbin-1), disval, ch);
-    pkh = getKernel(stm(cf > med, begin:begin+frameperbin-1), disval, ch(cf > med));
-    pkl = getKernel(stm(cf < med, begin:begin+frameperbin-1), disval, ch(cf < med));
+    pkh = getKernel(stm(cf == 1, begin:begin+frameperbin-1), disval, ch(cf == 1));
+    pkl = getKernel(stm(cf == 0, begin:begin+frameperbin-1), disval, ch(cf == 0));
     tkernel(:,a) = pk0';
     tkernel_h(:,a) = pkh';
     tkernel_l(:,a) = pkl';
@@ -115,9 +134,8 @@ ch = ch(ss==0);
 cf = cf(ss==0);
 % image classification to compute PKA
 pka_all = mean(stm(ch==1,:), 1) - mean(stm(ch==0,:), 1);
-med = median(cf);
-pka_hc = mean(stm(ch==1 & cf > med,:), 1) - mean(stm(ch==0 & cf > med,:), 1);
-pka_lc = mean(stm(ch==1 & cf < med,:), 1) - mean(stm(ch==0 & cf < med,:), 1);
+pka_hc = mean(stm(ch==1 & cf==1,:), 1) - mean(stm(ch==0 & cf==1,:), 1);
+pka_lc = mean(stm(ch==1 & cf==0,:), 1) - mean(stm(ch==0 & cf==0,:), 1);
 pka_all = binstm(pka_all, nbin);
 pka_hc = binstm(pka_hc, nbin);
 pka_lc = binstm(pka_lc, nbin);
@@ -127,10 +145,9 @@ function [pka_all, pka_hc, pka_lc] = PKA_logreg(stm, ch, cf, nbin)
 stm = zscore(binstm(stm, nbin));
 pka_all = glmfit(stm, ch, ...
     'binomial', 'link', 'logit', 'constant', 'on');
-med = median(cf);
-pka_hc = glmfit(stm(cf > med, :), ch(cf > med), ...
+pka_hc = glmfit(stm(cf == 1, :), ch(cf == 1), ...
     'binomial', 'link', 'logit', 'constant', 'on');
-pka_lc = glmfit(stm(cf < med, :), ch(cf < med), ...
+pka_lc = glmfit(stm(cf == 0, :), ch(cf == 0), ...
     'binomial', 'link', 'logit', 'constant', 'on');
 pka_all = pka_all(2:end)'; pka_hc = pka_hc(2:end)'; pka_lc = pka_lc(2:end)';
 
