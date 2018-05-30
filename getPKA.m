@@ -56,7 +56,7 @@ else
     lens = length(unis);
     for s = 1:lens
         med = median(cf(ss==unis(s)));
-        cf(ss==unis(s) & cf_orig < med) = 0;
+        cf(ss==unis(s) & cf_orig <= med) = 0;
         cf(ss==unis(s) & cf_orig > med) = 1;
     end
 end
