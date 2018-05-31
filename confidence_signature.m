@@ -20,8 +20,6 @@ function [cf, acc, stm] = confidence_signature(ntr, noise, conftype, stmdist, dc
 % "plot_confidence_signature(cf, acc, stm)"
 % +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-close all;
-
 % deal with inputs
 if nargin < 1; ntr = 10^6; end
 if nargin < 2; noise = 22.8; end
