@@ -55,11 +55,17 @@ else
     unis = unique(ss);
     lens = length(unis);
     for s = 1:lens
-        med = median(cf(ss==unis(s)));
-        cf(ss==unis(s) & cf_orig <= med) = 0;
-        cf(ss==unis(s) & cf_orig > med) = 1;
+        [cf0, cf1] = median_split(cf(ss==unis(s)));
+        cf(ss==unis(s) & ismember(cf_orig, cf0)) = 0;
+        cf(ss==unis(s) & ismember(cf_orig, cf1)) = 1;
     end
 end
+
+function [cf0, cf1] = median_split(cf)
+[~,idx] = sort(cf);
+n = floor(length(cf)/2);
+cf0 = cf(idx(1:n));
+cf1 = cf(idx(n+1:end));
 
 function stmbin = binstm(stm, nbin)
 % bin the stimulus metrix along with time

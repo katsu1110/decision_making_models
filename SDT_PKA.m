@@ -188,7 +188,7 @@ if race_flag == 1 % 2 integrators
     % instantaneous noisy measurements    
     idv1 = stm; idv2 = stm;
     sigma = [1 -sqrt(0.5); -sqrt(0.5) 1]; % van den Berg et al., 2016
-    for n = 1:ntr
+    parfor n = 1:ntr
         for f = 1:nframe
             R = stm(n,f) + mvnrnd((1+noise/100)*[abs(stm(n,f)), -abs(stm(n,f))], sigma, 1);
             idv1(n,f) = R(1);
@@ -211,13 +211,25 @@ if race_flag == 1 % 2 integrators
     for n = 1:ntr   
         idx1 = find(abs(dv1(n,:)) >= db(1), 1, 'first');
         idx2 = find(abs(dv2(n,:)) >= db(2), 1, 'first');
-        if ~isempty(idx1) || ~isempty(idx2)
-            idx = min([idx1, idx2]);
-            dv1(n, idx:end) = dv1(n, idx);
-            dv2(n, idx:end) = dv2(n, idx);
-            dt(n) = idx;
-            dbreach(n) = 1;
+        if isempty(idx1)
+            idx1 = nframe;
         end
+        if isempty(idx2)
+            idx2 = nframe;
+        end       
+        idx = min([idx1, idx2]);
+        if idx1 > idx2
+            dv1(n, idx:end) = dv1(n, idx);
+            dv2(n, idx:end) = sign(dv2(n, idx))*db(2);
+        elseif idx1 < idx2
+            dv1(n, idx:end) = sign(dv1(n, idx))*db(1);
+            dv2(n, idx:end) = dv2(n, idx);
+        elseif idx1==idx2
+            dv1(n, idx:end) = sign(dv1(n, idx))*db(1);
+            dv2(n, idx:end) = sign(dv2(n, idx))*db(2);
+        end
+        dt(n) = idx;
+        dbreach(n) = 1;
     end
     dv = dv1 + dv2;
     idv = [idv1, idv2];
@@ -237,7 +249,7 @@ else % one integrator
     for n = 1:ntr   
         idx = find(abs(dv(n,:)) >= db, 1, 'first');
         if ~isempty(idx)
-            dv(n, idx:end) = dv(n, idx);
+            dv(n, idx:end) = sign(dv(n, idx))*db;
             dt(n) = idx;
             dbreach(n) = 1;
         end
@@ -266,9 +278,10 @@ conf = conf + normrnd(0, cfnoise, size(conf));
 acc = 1*(ch==C);
 
 % median split
-med = median(conf);
-nreach1 = 100*sum(dbreach==1 & conf < med)/sum(conf < med);
-nreach2 = 100*sum(dbreach==1 & conf > med)/sum(conf > med);
+[cf0, cf1] = median_split(conf);
+% med = median(conf);
+nreach1 = 100*sum(dbreach==1 & ismember(conf, cf0))/sum(ismember(conf, cf0));
+nreach2 = 100*sum(dbreach==1 & ismember(conf, cf1))/sum(ismember(conf, cf1));
 disp([num2str(nreach2) ...
     '% trials reached DB in high confidence, '...
     num2str(nreach1)...
@@ -355,3 +368,10 @@ switch link
     case 'sigmoid'
         y = tanh(x);
 end
+
+function [cf0, cf1] = median_split(cf)
+% median split
+[~,idx] = sort(cf);
+n = floor(length(cf)/2);
+cf0 = cf(idx(1:n));
+cf1 = cf(idx(n+1:end));
