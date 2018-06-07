@@ -150,9 +150,11 @@ for c = 1:len_tr
     end
     
     % bound and decision time
-    idx = find(abs(idvs(c,:)) >= db);
+    idvsdb = idvs;
+    idx = find(abs(idvs(c,:)) >= db, 1, 'first');
     if ~isempty(idx)
-        idvs(c, idx(1):end) = idvs(c, idx(1));
+        idvs(c, idx(1):end) = idvs(c, idx);
+        idvsdb(c, idx(1):end) = sign(idvs(c, idx))*db;
         dt(c) = idx(1);
         dbreach(c) = 1;
     end
@@ -160,6 +162,9 @@ end
 
 nreach0 = 100*sum(dbreach==1)/len_tr;
 disp(['The % trials reaching the DB: ' num2str(nreach0)])
+if nreach0 <= 50
+    idvs = idvsdb;
+end
 
 % median split of DVs
 if dt_flag==1

@@ -208,6 +208,8 @@ if race_flag == 1 % 2 integrators
     end
 
     % integration-to-bound and decision time
+    dvdb1 = dv1;
+    dvdb2 = dv2;
     for n = 1:ntr   
         idx1 = find(abs(dv1(n,:)) >= db(1), 1, 'first');
         idx2 = find(abs(dv2(n,:)) >= db(2), 1, 'first');
@@ -219,19 +221,22 @@ if race_flag == 1 % 2 integrators
         end       
         idx = min([idx1, idx2]);
         if idx1 > idx2
-            dv1(n, idx:end) = dv1(n, idx);
-            dv2(n, idx:end) = sign(dv2(n, idx))*db(2);
+            dvdb1(n, idx:end) = dv1(n, idx);
+            dvdb2(n, idx:end) = sign(dv2(n, idx))*db(2);
         elseif idx1 < idx2
-            dv1(n, idx:end) = sign(dv1(n, idx))*db(1);
-            dv2(n, idx:end) = dv2(n, idx);
+            dvdb1(n, idx:end) = sign(dv1(n, idx))*db(1);
+            dvdb2(n, idx:end) = dv2(n, idx);
         elseif idx1==idx2
-            dv1(n, idx:end) = sign(dv1(n, idx))*db(1);
-            dv2(n, idx:end) = sign(dv2(n, idx))*db(2);
-        end
+            dvdb1(n, idx:end) = sign(dv1(n, idx))*db(1);
+            dvdb2(n, idx:end) = sign(dv2(n, idx))*db(2);
+        end        
+        dv1(n, idx:end) = dv1(n, idx);
+        dv2(n, idx:end) = dv2(n, idx);
         dt(n) = idx;
         dbreach(n) = 1;
     end
     dv = dv1 + dv2;
+    dvdb = dvdb1 + dvdb2;
     idv = [idv1, idv2];
 else % one integrator
     % sensory weighting
@@ -244,12 +249,14 @@ else % one integrator
     end
 
     % integration-to-bound and decision time
+    dvdb = dv;
     dt = nframe*ones(ntr,1);
     dbreach = zeros(ntr, 1);
     for n = 1:ntr   
         idx = find(abs(dv(n,:)) >= db, 1, 'first');
         if ~isempty(idx)
-            dv(n, idx:end) = sign(dv(n, idx))*db;
+            dv(n, idx:end) = dv(n, idx);
+            dvdb(n, idx:end) = sign(dv(n, idx))*db;
             dt(n) = idx;
             dbreach(n) = 1;
         end
@@ -257,6 +264,9 @@ else % one integrator
 end
 nreach0 = 100*sum(dbreach==1)/ntr;
 disp(['The % trials reaching the DB: ' num2str(nreach0)])
+if nreach0 <= 50
+    dv = dvdb;
+end
 
 % noise levels (experiment & internal)
 noisestm = std(stm(:));
@@ -306,9 +316,9 @@ para = struct('category', C, 'assigned_stm', ss, 'stm', stm, 'choice', ch, ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
     'noisestm',noisestm,'noiseidv',noiseidv, 'stmMean', stmMean, 'stmSD', stmSD);
 if race_flag == 1
-    para.dv = {dv1, dv2, dv};
+    para.dv = {dvdb1, dvdb2, dvdb};
 else
-    para.dv = dv;
+    para.dv = dvdb;
 end
 if repeat > 0
     para.pka_error = pka_all(2,:);
