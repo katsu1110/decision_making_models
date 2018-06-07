@@ -188,7 +188,7 @@ if race_flag == 1 % 2 integrators
     % instantaneous noisy measurements    
     idv1 = stm; idv2 = stm;
     sigma = [1 -sqrt(0.5); -sqrt(0.5) 1]; % van den Berg et al., 2016
-    parfor n = 1:ntr
+    for n = 1:ntr
         for f = 1:nframe
             R = stm(n,f) + mvnrnd((1+noise/100)*[abs(stm(n,f)), -abs(stm(n,f))], sigma, 1);
             idv1(n,f) = R(1);
