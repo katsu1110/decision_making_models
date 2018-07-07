@@ -23,17 +23,15 @@ beh = weight_on_stm(trst, pk, pka, threshold);
 beta = glmfit(zscore(trst.stm, 1), beh.ch, 'binomial', 'link', 'logit', 'constant', 'on');
 pka_est_logreg = beta(2:end)';
 
-% estimate pka by logistic regression 
-options = optimset('MaxFunEvals',10000,'maxiter',10000);
+% prior 
 pka0 = mean(trst.stm(trst.C == 0 & beh.ch==1, :), 1) ...
     - mean(trst.stm(trst.C == 0 & beh.ch==0, :), 1);
-c_pka = @(p)cost_pka(p, trst, beh);
-pka_est = fminsearch(c_pka, pka0, options);
-
-% estimate pk by optimization procedure
 pk0 = mean(trst.hdx_prob, 1).*sign(trst.hdx);
-c_pk = @(p)cost_pk(p, trst, beh, pka_est);
-pk_est = fminsearch(c_pk, pk0, options);
+
+% parameter estimations
+options = optimset('MaxFunEvals',10000,'maxiter',10000);
+c = cost_params(trst, beh, pka0, pk0, options);
+[pka_est, pk_est] = fminsearch(c, [pka0, pk0], option);
 
 % visualize results
 pk = {pk, pk_est_hn, pk_est};
@@ -42,7 +40,7 @@ labels = {'original', 'hn', 'me', 'ic', 'logreg'};
 visualize(trst, beh, pk, pka, labels)
 
 % subfunction
-function trst = dynamic_stm_generator(ntrsig, nframe, hdx, sig)
+function trst = dynamic_stm_generator(ntrsig, nframe, hdx, sig, stmdist)
 % generate dynamic stimulus sequence 
 
 % deal with inputs
@@ -52,6 +50,7 @@ if nargin < 3; hdx = 0.3*[-1:0.25:1]; end
 if nargin < 4
     sig = 0.5*[-1 -0.5 -0.25 -0.125 -0.0625 0 0.0625 0.125 0.25 0.5 1];
 end
+if nargin < 6; stmdist = 'gaussian'; end
 
 % seed
 rng(19891220);
@@ -59,6 +58,17 @@ rng(19891220);
 nhdx = length(hdx);
 % percent signal
 nsig = length(sig);
+% stimulus distribution
+stmMean = mean(sig);
+stmSD = std(sig);
+switch lower(stmdist)
+    case 'uniform' 
+        pc1 = ones(1, nsig);
+        pc2 = ones(1, nsig);
+    case 'gaussian' 
+        pc1 = gaussmf(dc,[stmSD stmMean]);
+        pc2 = gaussmf(-dc,[stmSD -stmMean]);
+end
 % generate dynamic stimulus sequence
 begin = 1;
 pd = zeros(nsig, nhdx);
@@ -206,6 +216,15 @@ pka = nan(1,nbin);
 for a = 1:nbin
     pka(a) = dot(tkernel(:,a), pk);
 end
+
+function c = cost_params(p, trst, beh, options)
+% estimate pka by logistic regression
+nframe = size(trst.stm, 2);
+c_pka = @(x)cost_pka(x, trst, beh);
+pka_est = fminsearch(c_pka, p(1:nframe), options);
+
+% estimate pk by optimization procedure
+c = @(p)cost_pk(p, trst, beh, pka_est);
 
 function [x, y] = getPM(trst, beh)
 % psychometric function
