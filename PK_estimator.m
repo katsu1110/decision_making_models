@@ -30,8 +30,11 @@ pk0 = mean(trst.hdx_prob, 1).*sign(trst.hdx);
 
 % parameter estimations
 options = optimset('MaxFunEvals',10000,'maxiter',10000);
-c = cost_params(trst, beh, pka0, pk0, options);
-[pka_est, pk_est] = fminsearch(c, [pka0, pk0], option);
+p0 = [pka0, pk0];
+c = @(p)cost_params(p, trst, beh, options);
+p = fminsearch(c, p0, options);
+pka_est = p(1:nframe);
+pk_est = p(nframe+1:end);
 
 % visualize results
 pk = {pk, pk_est_hn, pk_est};
@@ -58,17 +61,17 @@ rng(19891220);
 nhdx = length(hdx);
 % percent signal
 nsig = length(sig);
-% stimulus distribution
-stmMean = mean(sig);
-stmSD = std(sig);
-switch lower(stmdist)
-    case 'uniform' 
-        pc1 = ones(1, nsig);
-        pc2 = ones(1, nsig);
-    case 'gaussian' 
-        pc1 = gaussmf(dc,[stmSD stmMean]);
-        pc2 = gaussmf(-dc,[stmSD -stmMean]);
-end
+% % stimulus distribution
+% stmMean = mean(sig);
+% stmSD = std(sig);
+% switch lower(stmdist)
+%     case 'uniform' 
+%         pc1 = ones(1, nsig);
+%         pc2 = ones(1, nsig);
+%     case 'gaussian' 
+%         pc1 = gaussmf(dc,[stmSD stmMean]);
+%         pc2 = gaussmf(-dc,[stmSD -stmMean]);
+% end
 % generate dynamic stimulus sequence
 begin = 1;
 pd = zeros(nsig, nhdx);
@@ -109,16 +112,9 @@ function beh = weight_on_stm(trst, pk, pka, threshold)
 % threshold ... psychophysical threshold to determine the noise level
 %
 
-% stimulus
+% stimulus to decision variable
 [ntr, nframe] = size(trst.stm);
-idv = trst.stm;
-
-% assign PK weight
-lenhdx = length(trst.hdx);
-idv_orig = idv;
-for n = 1:lenhdx
-    idv(idv_orig == trst.hdx(n)) = pk(n);
-end
+idv = stm2dv(trst.stm, pk);
 
 % noise on stm to dv
 idv = idv + normrnd(0, threshold, ntr, nframe);
@@ -144,20 +140,28 @@ beh.dv = dv;
 beh.ch = ch;
 beh.acc = acc;
 
-function c = cost_pk(p, trst, beh, pka_est)
+function idv = stm2dv(stm, pk)
+% assign PK weight
+hdx = unique(stm);
+lenhdx = length(hdx);
+idv = stm;
+for n = 1:lenhdx
+    idv(stm == hdx(n)) = pk(n);
+end
+
+function c = cost_pk(pk, trst, beh, pka_est)
 % simulation of choice behavior
-beh_pred = weight_on_stm(trst, p, pka_est, 0);
+beh_pred = weight_on_stm(trst, pk, pka_est, 0);
 % choice prediction accuracy
 predacc = sum(beh.ch == beh_pred.ch)/size(beh.ch, 1);
 % print parameters
-disp(['pk = ' num2str(p)])
 disp(['pred acc = ' num2str(100*predacc) ' %'])
 % cost
 c = 1 - predacc;
 
-function c = cost_pka(p, trst, beh)
+function c = cost_pka(p, trst, beh, pk)
 % negative log likelihood of logistic regression
-X = zscore(trst.stm, 1);
+X = zscore(stm2dv(trst.stm, pk), 1);
 X = [ones(size(X,1), 1) X];
 p = [1 p];
 c = sum(log(1 + exp(X*p'))) - (beh.ch)'*X*p';
@@ -220,11 +224,11 @@ end
 function c = cost_params(p, trst, beh, options)
 % estimate pka by logistic regression
 nframe = size(trst.stm, 2);
-c_pka = @(x)cost_pka(x, trst, beh);
+c_pka = @(x)cost_pka(x, trst, beh, p(nframe+1:end));
 pka_est = fminsearch(c_pka, p(1:nframe), options);
 
 % estimate pk by optimization procedure
-c = @(p)cost_pk(p, trst, beh, pka_est);
+c = cost_pk(p(nframe+1:end), trst, beh, pka_est);
 
 function [x, y] = getPM(trst, beh)
 % psychometric function
