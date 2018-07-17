@@ -6,6 +6,7 @@ function PK_estimator
 ntrsig = 100;
 nframe = 7;
 trst = dynamic_stm_generator(ntrsig, nframe);
+disp('stimulus sequence generated')
 
 % decision variable
 threshold = 1;
@@ -15,6 +16,7 @@ for n = 2:nframe
     pka(n) = pka(n-1)*0.8;
 end
 beh = weight_on_stm(trst, pk, pka, threshold);
+disp('choice behaviors genearated')
 
 % Nienborg & Cumming, 2007, 2009
 [pka_est_hn, pk_est_hn] = PKA_hn(trst.C, trst.stm, beh.ch, nframe);
@@ -29,12 +31,14 @@ pka0 = mean(trst.stm(trst.C == 0 & beh.ch==1, :), 1) ...
 pk0 = mean(trst.hdx_prob, 1).*sign(trst.hdx);
 
 % parameter estimations
+disp('start parameter optimization...')
 options = optimset('MaxFunEvals',10000,'maxiter',10000);
 p0 = [pka0, pk0];
 c = @(p)cost_params(p, trst, beh, options);
 p = fminsearch(c, p0, options);
 pka_est = p(1:nframe);
 pk_est = p(nframe+1:end);
+disp('parameter optimization finished')
 
 % visualize results
 pk = {pk, pk_est_hn, pk_est};
@@ -43,6 +47,10 @@ labels = {'original', 'hn', 'me', 'ic', 'logreg'};
 visualize(trst, beh, pk, pka, labels)
 
 % subfunction
+function y = sigmoid(x, a)
+szx = size(x);
+y = ones(szx)./(ones(szx) + exp(-a*x));
+
 function trst = dynamic_stm_generator(ntrsig, nframe, hdx, sig, stmdist)
 % generate dynamic stimulus sequence 
 
@@ -125,10 +133,17 @@ idv = idv.*repmat(pka, ntr, 1);
 % integrate instantaneous decision variable
 dv = cumsum(idv, 2);
 
+% probability of choice 1
+ch_prob = sigmoid(dv(:,end), 1);
+
 % choice
-ch = sign(dv(:,end));
-ch(ch==0) = datasample([-1 1], sum(ch==0));
+ch = ones(ntr, 1);
+ch(ch_prob < 0.5) = -1;
+ch(ch_prob==0.5) = datasample([-1 1], sum(ch_prob==0.5));
 ch(ch==-1) = 0;
+
+% confidence
+cf = abs(ch_prob - 0.5);
 
 % accuracy
 acc = datasample([0 1], ntr)';
@@ -137,7 +152,9 @@ acc(sign(ch) == sign(trst.C)) = 1;
 % into output
 beh.idv = idv;
 beh.dv = dv;
+beh.ch_prob = ch_prob;
 beh.ch = ch;
+beh.cf = cf;
 beh.acc = acc;
 
 function idv = stm2dv(stm, pk)
@@ -149,15 +166,36 @@ for n = 1:lenhdx
     idv(stm == hdx(n)) = pk(n);
 end
 
+% function bce = binary_cross_entropy(y, p)
+% % binary cross entropy
+% % y - binary indicator (0 or 1) if class label c is the correct classification for observation o
+% % p - predicted probability observation o is of class c
+% bce = -sum(y.*log(p) + (1 - y).*log(1 - p));
+
+function h = hinge(y_pred, y_orig)
+% Hinge classification error
+h = 0;
+leny = length(y_orig);
+for i = 1:leny
+    h = h + max([0, 1 - y_pred(i).*y_orig(i)]);
+end
+h = h/leny;
+
 function c = cost_pk(pk, trst, beh, pka_est)
 % simulation of choice behavior
 beh_pred = weight_on_stm(trst, pk, pka_est, 0);
-% choice prediction accuracy
-predacc = sum(beh.ch == beh_pred.ch)/size(beh.ch, 1);
-% print parameters
-disp(['pred acc = ' num2str(100*predacc) ' %'])
-% cost
-c = 1 - predacc;
+% % choice prediction accuracy
+% y = beh.ch == beh_pred.ch;
+% cost (Hinge)
+c = hinge(beh_pred.ch, beh.ch);
+disp(['hinge = ' num2str(c)])
+% predacc = sum(y)/size(beh.ch, 1);
+% % print parameters
+% disp(['pred acc = ' num2str(100*predacc) ' %'])
+% cost (binary cross entropy)
+% c = binary_cross_entropy(y, beh_pred.ch_prob);
+% disp(['b c e = ' num2str(c)])
+
 
 function c = cost_pka(p, trst, beh, pk)
 % negative log likelihood of logistic regression
@@ -177,7 +215,7 @@ for a = 1:nbin
     begin = begin + frameperbin;
 end
 
-function [pk, pkvar] = getKernel(stm, disval, ch)
+function pk = getKernel(stm, disval, ch)
 % trial averaged stimulus distributions split by choice
 nd = length(disval);
 ntr = length(ch);
@@ -189,7 +227,6 @@ for r = 1:ntr
 end
 % compute PK for 0% stimulus
 pk = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
-pkvar = var(svmat(ch==1, :), [], 1) + var(svmat(ch==0, :), [], 1);
 
 function [pka, pk] = PKA_hn(ss, stm, ch, nbin)
 % only 0% signal trials
@@ -204,6 +241,9 @@ if nd > 25
     stm = stm - mean(mean(stm));
 end
 disval = unique(stm);
+% Psychophysical kernel
+pk = getKernel(stm, disval, ch);
+% Psychophysical kernel amplitude
 nd = length(disval);
 tkernel = nan(nd, nbin);
 begin = 1;
@@ -214,8 +254,6 @@ for a = 1:nbin
     tkernel(:,a) = pk0';
     begin = begin + frameperbin;
 end
-% PKA
-pk = mean(tkernel,2);
 pka = nan(1,nbin);
 for a = 1:nbin
     pka(a) = dot(tkernel(:,a), pk);
