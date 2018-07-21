@@ -5,17 +5,18 @@ function PK_estimator
 % generate stimulus
 ntrsig = 100;
 nframe = 7;
-trst = dynamic_stm_generator(ntrsig, nframe);
+hdx = 0.3*[-1:0.25:1];
+trst = dynamic_stm_generator(ntrsig, nframe, hdx);
 disp('stimulus sequence generated')
 
 % decision variable
-threshold = 1;
+inoise = 0.1;
 pk = [-0.1 -0.3 -0.5 -0.25 0.01 0.24 0.45 0.33 0.05];
 pka = ones(1, nframe);
 for n = 2:nframe
     pka(n) = pka(n-1)*0.8;
 end
-beh = weight_on_stm(trst, pk, pka, threshold);
+beh = weight_on_stm(trst, pk, pka, inoise);
 disp('choice behaviors genearated')
 
 % Nienborg & Cumming, 2007, 2009
@@ -28,17 +29,25 @@ pka_est_logreg = beta(2:end)';
 % prior 
 pka0 = mean(trst.stm(trst.C == 0 & beh.ch==1, :), 1) ...
     - mean(trst.stm(trst.C == 0 & beh.ch==0, :), 1);
-pk0 = mean(trst.hdx_prob, 1).*sign(trst.hdx);
+% pk0 = mean(trst.hdx_prob, 1).*sign(trst.hdx);
+pk0 = ones(size(trst.hdx));
+% % parameter estimations
+% disp('start parameter optimization...')
+% options = optimset('MaxFunEvals',10000,'maxiter',10000);
+% p0 = [pka0, pk0];
+% c = @(p)cost_params(p, trst, beh, options);
+% p = fminsearch(c, p0, options);
+% pka_est = p(1:nframe);
+% pk_est = p(nframe+1:end);
+% disp('parameter optimization finished')
 
-% parameter estimations
-disp('start parameter optimization...')
-options = optimset('MaxFunEvals',10000,'maxiter',10000);
-p0 = [pka0, pk0];
-c = @(p)cost_params(p, trst, beh, options);
-p = fminsearch(c, p0, options);
-pka_est = p(1:nframe);
-pk_est = p(nframe+1:end);
-disp('parameter optimization finished')
+% RL
+a = 0.1;
+b = 1;
+[~, w] = RL(trst, beh, pk0, a, b);
+pk_est = mean(w(beh.ch==1,:),1) - mean(w(beh.ch==0,:),1);
+beta = glmfit(zscore(stm2dv(trst.stm, pk_est), 1), beh.ch, 'binomial', 'link', 'logit', 'constant', 'on');
+pka_est = beta(2:end)';
 
 % visualize results
 pk = {pk, pk_est_hn, pk_est};
@@ -46,7 +55,7 @@ pka = {pka, pka_est_hn, pka_est, pka0, pka_est_logreg};
 labels = {'original', 'hn', 'me', 'ic', 'logreg'};
 visualize(trst, beh, pk, pka, labels)
 
-% subfunction
+% subfunction --------------------------------------------
 function y = sigmoid(x, a)
 szx = size(x);
 y = ones(szx)./(ones(szx) + exp(-a*x));
@@ -111,13 +120,13 @@ trst.hdx_prob = pd;
 trst.C = C;
 trst.stm = stm;
 
-function beh = weight_on_stm(trst, pk, pka, threshold)
+function beh = weight_on_stm(trst, pk, pka, inoise)
 % assign time-weight (pka) and dv-weight (pk) on the stimulus sequence and
 % determine the choice
 % 
 % PK (Psychophysical kernel) ... stm to decision variable (template)
 % PKA (Psychophysical Kernel Amplitude) ... weight on time
-% threshold ... psychophysical threshold to determine the noise level
+% inoise ... internal noise level
 %
 
 % stimulus to decision variable
@@ -125,7 +134,7 @@ function beh = weight_on_stm(trst, pk, pka, threshold)
 idv = stm2dv(trst.stm, pk);
 
 % noise on stm to dv
-idv = idv + normrnd(0, threshold, ntr, nframe);
+idv = idv + normrnd(0, inoise, ntr, nframe);
 
 % weights on time
 idv = idv.*repmat(pka, ntr, 1);
@@ -164,6 +173,39 @@ lenhdx = length(hdx);
 idv = stm;
 for n = 1:lenhdx
     idv(stm == hdx(n)) = pk(n);
+end
+
+function [w, wmat] = RL(trst, beh, w0, a, b)
+% fit a simple reinforcement learning paradigm
+ntr = length(trst.C);
+chs = beh.ch;
+chs(chs==0) = -1;
+lenw = length(w0);
+w = w0;
+wmat = zeros(ntr, lenw);
+for i = 1:ntr
+    % pool responses
+    s = beh.idv(i,:).*stm2dv(trst.stm(i,:), w);
+    y = sum(s);
+    su = zeros(1, lenw);
+    for l = 1:lenw
+        su(l) = mean(s(trst.stm(i,:)==trst.hdx(l)));
+    end
+    su(isnan(su)) = 0;
+%     y = beh.idv(i,:)*s';
+%     while ~isequal(sign(y), chs(i))
+%         w = normrnd(w, inoise*ones(1, lenw));
+%         disp(['trial ' num2str(i) ': w added noise'])
+%         s = stm2dv(trst.stm(i,:),w);
+%         y = beh.idv(i,:)*s';
+%     end
+    wmat(i,:) = w;
+    % prediction error
+    delta = a*chs(i)*(beh.acc(i) - sigmoid(y, b))*su;
+    % weight update
+    w = w + delta;
+    % weight normalization
+    w = w/sum(w.^2);
 end
 
 % function bce = binary_cross_entropy(y, p)
@@ -319,7 +361,7 @@ set(gca, 'box', 'off'); set(gca, 'TickDir', 'out');
 % psychometric function
 subplot(2,5,5)
 [x, y] = getPM(trst, beh);
-plot(x,y,'-ok')
+plot(x,y,'-.k')
 xlabel('% signal')
 ylabel('P(ch = 1)')
 title({'psychometric', 'function'})
