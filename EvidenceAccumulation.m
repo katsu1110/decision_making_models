@@ -1,7 +1,7 @@
-function [pka, dv] = EvidenceAccumulation(acc, e, ntime, ntrial, stim, model, plot_flag)
+function [pka, dv] = EvidenceAccumulation(acc, e, ntime, ntrial, stim, model, cfnoise, plot_flag)
 %%
 % simulate & visualize behavior of the 'Evidence Accumulation' model 
-% given by Ralf Haefner @ Rochester Univ.
+% given by Ralf Haefner @ Rochester Uni.
 %
 % simulate decision-variable for simulations of zero-signal case
 % INPUT:
@@ -11,6 +11,7 @@ function [pka, dv] = EvidenceAccumulation(acc, e, ntime, ntrial, stim, model, pl
 % - ntrial ... the number of trials: 1000
 % - stim ... 'binary' or 'normal'
 % - model ... 'linear' or 'sigmoid'
+% - cfnoise ... noise on confidence judgement
 % - plot_flag ... 0 (no figure) or 1 (plot)
 %
 % OUTPUT: 
@@ -28,7 +29,8 @@ if nargin<3, ntime=100; end % 100 time steps
 if nargin<4, ntrial=1000; end % number of simulated trials
 if nargin<5, stim='normal'; end % stimulus to be simulated (see below)
 if nargin<6, model='linear'; end % model to be simulated (see below)
-if nargin<7, plot_flag=1; end % visualize or just store data
+if nargin<7, cfnoise = 0; end % noise on confidence judgement
+if nargin<8, plot_flag=1; end % visualize or just store data
 
 % Ralf's function (in subfunction)
 [dv, stm] = Simulate_Evidence_Accumulation(acc,e,ntime,ntrial,stim,model);
@@ -40,6 +42,7 @@ pka = nan(3*nrow, ntime);
 c = 1;
 for n = 1:nrow
     [ch, conf] = getCh(dv, n);
+    conf = conf + normrnd(0, cfnoise*std(conf), size(conf));
     pka(c:c+2, :) = getPK(stm, ch, conf, binsize);
     c = c + 3;
 end

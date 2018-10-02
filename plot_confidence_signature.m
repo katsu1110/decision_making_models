@@ -57,8 +57,8 @@ para.correct_conf = cfc;
 para.error_conf = cfe;
 
 if plot_flag==1
-    close all;
-    h = figure;
+%     close all;
+%     h = figure;
 
     % yellow and green
     y = [0.9576    0.7285    0.2285];
@@ -95,5 +95,5 @@ if plot_flag==1
     legend('boxoff')
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 
-    set(h, 'Name', 'Signatures of Decision Confidence', 'NumberTitle', 'off')
+    set(gcf, 'Name', 'Signatures of Decision Confidence', 'NumberTitle', 'off')
 end

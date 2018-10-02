@@ -13,6 +13,7 @@ function para = Yates_simulation(varargin)
 % 'history' ... 0; without history kernel, 1; with history kernel
 % 'stm_gain'... float; range of the stimulus
 % 'nbin'... int; the number of time bin for PKA
+% 'cfnoise' ... float; noise on confidence judgement. 0 is default. 
 % 'pkmethod' ... method to compute psychophysical kernel amplitude (PKA)
 %                0; Nienborg & Cumming, 2009, 1; image classification ,2; logistic regression
 % 'repeat' ... the number of repeats for resampling
@@ -20,17 +21,20 @@ function para = Yates_simulation(varargin)
 %  
 % OUTPUT: output metrics storing simulated results
 %
+% EXAMPLE: Yates_simulation('plot')
+%
 % +++++++++++++++++++++++++++++++++++++++++++++++
 
 % default input arguments
 nneuron = 1;
 len_tr = 5000;
-tmax = 300; %was 400
-tau = 50; %was 30
-kernelgain_s = 0.05; %was 0.05
-kernelgain_c = 0.025; %was 0.05
-offset_gain = 1.5; %was 1
+tmax = 300; 
+tau = 50; 
+kernelgain_s = 0.05; 
+kernelgain_c = 0.025; 
+offset_gain = 1.5; 
 stm_gain = 0.3;
+cfnoise = 0;
 history = 0;
 repeat = 0;
 nbin = 4;
@@ -63,6 +67,9 @@ while  j <= length(varargin)
         case 'stm_gain'
             stm_gain = varargin{j+1};               
              j = j + 2;
+        case 'cfnoise'
+            cfnoise = varargin{j+1};
+            j = j + 2;
         case 'history'
             history = 1;               
              j = j + 1;
@@ -193,8 +200,8 @@ disp(['ch 1: ' num2str(sum(ch==1)) ', ch2: ' num2str(sum(ch==0))])
 % confidence
 conf = abs(ev);
 
-% % add noise on confidence judgement
-% conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
+% add noise on confidence judgement
+conf = conf + normrnd(0, cfnoise*std(conf), size(conf));
 
 %%
 % PSTH
@@ -290,7 +297,7 @@ for b = 1:binsize
 end
 
 function [cp] = rocN(x,y)
-% Hendrikje's function to compute CP
+% HN's function to compute CP
 N = 100;
 [m n] = size(x);
 x = reshape(x,1,m*n);

@@ -1,8 +1,9 @@
-function [para] = SDTvariants(varargin)
+function [para] = SDTfast(varargin)
 %% 
-% simulation of Signal detection theory (SDT) manipulating specified "noise", "weights", "db" and "leak"
+% fast simulation of Signal detection theory (SDT) manipulating specified "noise", "weights", "db" and "leak"
 % INPUT:
 % 'noise' ... float; add pooling noise 
+% 'cfnoise' ... float; noise on confidence judgement. 0 is default. 
 % 'weights' ... vector with its length of len_frame (100 in default); multiplied with stimulus sequence
 % 'db' ... float; decision boundary
 % 'leak' ... float; leaky integration
@@ -18,6 +19,9 @@ function [para] = SDTvariants(varargin)
 %
 % OUTPUT:
 % matlab structure including relevant information
+%
+% EXAMPLE:
+% SDTfast('db', 2.85, 'plot');
 
 %% pre-set parameters
 % hdx = [0.3 0.2 0.1 0.01 -0.01 -0.1 -0.2 -0.3];
@@ -52,6 +56,9 @@ nbin = 4;
 
 % logistic regression or image classification
 logreg_flag = 0;
+
+% confidence noise
+cfnoise = 0;
 
 % figure
 plot_flag = 0;
@@ -89,6 +96,9 @@ while  j<= length(varargin)
         case 'nbin'
             nbin = varargin{j+1};            
              j = j + 2;
+        case 'cfnoise'
+            cfnoise = varargin{j+1};
+            j = j + 2;
         case 'logreg'
             logreg_flag = 1;
             j = j + 1;
@@ -139,8 +149,7 @@ dvs = sensoryrep + sensorynoise;
 idvs = zeros(len_tr, len_frame);
 dt = len_frame*ones(len_tr,1);
 dbreach = zeros(len_tr, 1);
-for c = 1:len_tr
-    
+for c = 1:len_tr    
     % sensory weighting
     idvs(c,:) = dvs(c,:).*weights;
     
@@ -150,11 +159,9 @@ for c = 1:len_tr
     end
     
     % bound and decision time
-    idvsdb = idvs;
     idx = find(abs(idvs(c,:)) >= db, 1, 'first');
     if ~isempty(idx)
-        idvs(c, idx(1):end) = idvs(c, idx);
-        idvsdb(c, idx(1):end) = sign(idvs(c, idx))*db;
+        idvs(c, idx(1):end) = sign(idvs(c, idx))*db;
         dt(c) = idx(1);
         dbreach(c) = 1;
     end
@@ -162,9 +169,6 @@ end
 
 nreach0 = 100*sum(dbreach==1)/len_tr;
 disp(['The % trials reaching the DB: ' num2str(nreach0)])
-if nreach0 <= 50
-    idvs = idvsdb;
-end
 
 % median split of DVs
 if dt_flag==1
@@ -173,19 +177,22 @@ else
     conf = abs(idvs(:,end));
 end
 
-% % add noise on confidence judgement
-% conf = conf + normrnd(median(conf), 0.2*median(conf), size(conf));
+% choice 
+ch = sign(idvs(:,end) - (bias/100)*ones(len_tr,1));
 
-med = median(conf);
-nreach1 = 100*sum(dbreach==1 & conf < med)/sum(conf < med);
-nreach2 = 100*sum(dbreach==1 & conf > med)/sum(conf > med);
+% add noise on confidence judgement
+conf = conf + normrnd(0, cfnoise*std(conf), size(conf));
+
+% confidence median split
+[~, sorted_idx] = sort(conf, 'descend');
+cf = zeros(1, len_tr);
+cf(sorted_idx(1:round(len_tr/2))) = 1;
+nreach1 = 100*sum(dbreach==1 & cf==0)/sum(cf==0);
+nreach2 = 100*sum(dbreach==1 & cf==1)/sum(cf==1);
 disp([num2str(nreach2) ...
     '% trials reached DB in high confidence, '...
     num2str(nreach1)...
     '% trials reached DB in low confidence '])
-
-% choice 
-ch = sign(idvs(:,end) - (bias/100)*ones(len_tr,1));
 
 idx0 = find(ch==0);
 len0 = length(idx0);
@@ -207,8 +214,8 @@ for a = 1:nbin
     % time-binned PK
     stmbin(:, a) = mean(stm(:,begin:begin+frameperbin-1), 2);
     pk0 = getKernel(stm(:,begin:begin+frameperbin-1), ch);
-    pkh = getKernel(stm(conf > med, begin:begin+frameperbin-1), ch(conf > med));
-    pkl = getKernel(stm(conf < med, begin:begin+frameperbin-1), ch(conf < med));
+    pkh = getKernel(stm(cf==1, begin:begin+frameperbin-1), ch(cf==1));
+    pkl = getKernel(stm(cf==0, begin:begin+frameperbin-1), ch(cf==0));
     tkernel(:,a) = pk0';
     tkernel_h(:,a) = pkh';
     tkernel_l(:,a) = pkl';
@@ -217,8 +224,6 @@ end
 
 % time-averaged kernel
 avkernel = getKernel(stm, ch);
-% avkernel_h = getKernel(stm(conf > med,:), ch(conf > med));
-% avkernel_l = getKernel(stm(conf < med,:), ch(conf < med));
 
 % psychophysical kernel amplitude
 amp = nan(1,nbin);
@@ -237,9 +242,9 @@ else
     pka_method = 'logistic regression';
     amp = glmfit(stmbin, ch, ...
         'binomial', 'link', 'logit', 'constant', 'on');
-    amph = glmfit(stmbin(conf > med, :), ch(conf > med), ...
+    amph = glmfit(stmbin(cf==1, :), ch(cf==1), ...
         'binomial', 'link', 'logit', 'constant', 'on');
-    ampl = glmfit(stmbin(conf < med, :), ch(conf < med), ...
+    ampl = glmfit(stmbin(cf==0, :), ch(cf==0), ...
         'binomial', 'link', 'logit', 'constant', 'on');
     amp = amp(2:end); amph = amph(2:end); ampl = ampl(2:end);
 end
@@ -248,11 +253,16 @@ if mean(isnan(amph))
 elseif mean(isnan(ampl))
     ampl = 2*amp - amph;
 end
+if db==0
+    amp = zeros(1, nbin);
+    amph = zeros(1, nbin);
+    ampl = zeros(1, nbin);
+end
 
 % output argumant
 para = struct('trKernel', tkernel, 'trKernel_highconf', tkernel_h, 'trKernel_lowconf', tkernel_l, ...
     'pka_method', pka_method,'amplitude', amp, 'amplitude_highconf', amph, 'amplitude_lowconf', ampl,...
-    'choice_bias', sum(ch==0)/sum(ch==1), ...
+    'choice_bias', sum(ch==0)/sum(ch==1), 'confidence_noise', cfnoise, ...
     'nreach',nreach0,'nreach_highconf',nreach2,'nreach_lowconf',nreach1,...
     'noisestm',noisestm,'noiseidv',noiseidv);
 
@@ -280,8 +290,8 @@ if plot_flag==1
     nom = mean(amp);
     if resample_flag==1
         repeat = 1000;
-        [err, errl, errh] = resamplePK(stm, ch, nbin, frameperbin, conf, ...
-            med, repeat, logreg_flag);
+        [err, errl, errh] = resamplePK(stm, ch, nbin, frameperbin, cf, ...
+            repeat, logreg_flag);
         fill_between(1:nbin, (amp - err)/nom, (amp + err)/nom, [0 0 0])
         hold on;       
         plot(1:nbin, amp/nom, '-', 'color', [0 0 0], 'linewidth', 2)
@@ -341,7 +351,6 @@ if plot_flag==1
     set(gca, 'box', 'off'); set(gca, 'TickDir', 'out')
 end
     
-
 %% subfunctions
 function [pk0] = getKernel(hdxmat, ch)
 
@@ -358,9 +367,9 @@ end
 % compute PK for 0% stimulus
 pk0 = mean(svmat(ch==1,:)) - mean(svmat(ch==0,:));
 
-function [err, err0, err1] = resamplePK(hdxmat, ch, nbin, frameperbin, conf, med, repeat, logreg_flag)
-conf0 = find(conf < med);
-conf1 = find(conf > med);
+function [err, err0, err1] = resamplePK(hdxmat, ch, nbin, frameperbin, cf, repeat, logreg_flag)
+conf0 = find(cf==0);
+conf1 = find(cf==1);
 disval = unique(hdxmat);
 len_d = length(disval);
 ampr = nan(repeat, nbin);
@@ -406,21 +415,3 @@ end
 err = std(ampr, [], 1);
 err0 = std(ampr0, [], 1);
 err1 = std(ampr1, [], 1);
-
-function fill_between(x,y_bottom, y_top, maincolor,transparency,varargin)
-if nargin < 3
-        error('x, y_bottom, y_top are required as input arguments')
-elseif nargin==3
-        maincolor = [0 0 0];
-        transparency = [];
-elseif nargin==4
-        transparency = [];
-end
-
-edgecolor = maincolor + (1 - maincolor)*0.55;
-
-h = fill([x fliplr(x)],[y_bottom fliplr(y_top)],edgecolor);
-set(h,'EdgeColor','none')
-if ~isnan(transparency)
-        alpha(transparency)
-end
