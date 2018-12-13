@@ -18,6 +18,9 @@ function [pka_all, pka_hc, pka_lc] = getPKA(ss, stm, ch, cf, nbin, pkmethod, rep
 % NOTE: when repeat > 0, resampling is performed and estimated SEM is 
 % stored in the second row of each output pka
 %
+% EXAMPLE: pka_all = getPKA(signed stimulus strength, stimulus sequence,
+% choice, [], 4, 0, 500);
+%
 % +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 % median split of confidence in each stimulus type
